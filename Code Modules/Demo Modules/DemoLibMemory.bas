@@ -2,7 +2,7 @@ Attribute VB_Name = "DemoLibMemory"
 Option Explicit
 Option Private Module
 
-Private Const LOOPS As Long = 100000
+Private Const LOOPS As Long = 10000
 
 Sub DemoMain()
     DemoMem
@@ -89,6 +89,7 @@ Sub DemoMemByteSpeed()
     Next i
     Debug.Print "Copy <" & TypeName(x1) & "> By API " & Format$(LOOPS, "#,##0") _
         & " times in " & Round(Timer - t, 3) & " seconds"
+    DoEvents
 End Sub
 
 Sub DemoMemIntSpeed()
@@ -111,6 +112,7 @@ Sub DemoMemIntSpeed()
     Next i
     Debug.Print "Copy <" & TypeName(x1) & "> By API " & Format$(LOOPS, "#,##0") _
         & " times in " & Round(Timer - t, 3) & " seconds"
+    DoEvents
 End Sub
 
 Sub DemoMemLongSpeed()
@@ -133,6 +135,7 @@ Sub DemoMemLongSpeed()
     Next i
     Debug.Print "Copy <" & TypeName(x1) & "> By API " & Format$(LOOPS, "#,##0") _
         & " times in " & Round(Timer - t, 3) & " seconds"
+    DoEvents
 End Sub
 
 Sub DemoMemLongPtrSpeed()
@@ -160,4 +163,5 @@ Sub DemoMemLongPtrSpeed()
     Next i
     Debug.Print "Copy <" & TypeName(x1) & "> By API " & Format$(LOOPS, "#,##0") _
         & " times in " & Round(Timer - t, 3) & " seconds"
+    DoEvents
 End Sub
