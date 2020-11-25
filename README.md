@@ -3,6 +3,8 @@ Native memory manipulation in VBA
 
 Using CopyMemory API (RtlMoveMemory on Windows and MemMove on Mac) is quite slow when used many times. Moreover, on some systems this Memory API is even slower due to certain software (e.g. Windows Defender - see [article](https://stackoverflow.com/questions/57885185/windows-defender-extremly-slowing-down-macro-only-on-windows-10)). The API can become so slow that is pretty much unusable (e.g. on my x32 machine it is 600 times slower than it used to be). Using the **LibMemory** module presented here overcomes the speed issues for reading and writing 1, 2, 4 and 8 bytes from and into memory.
 
+Related [Code Review question](https://codereview.stackexchange.com/questions/252659/fast-native-memory-manipulation-in-vba)
+
 ## Implementation
 Same technique used [here](https://github.com/cristianbuse/VBA-WeakReference) was implemented. A remote Variant allows the changing of the VarType on a second Variant which in turn reads memory remotely as well (has VT_BYREF flag set). A single CopyMemory API call is done when initializing the mentioned remote VarType. Subsequent usage relies on native VBA code only.
 
