@@ -18,7 +18,7 @@ A function for UnsignedAddition of Integers is also exposed.
 
 ## Installation
 Just import the following code modules in your VBA Project:
-* **LibMemory.cls**
+* **LibMemory.bas**
 
 ## Demo
 
