@@ -220,169 +220,23 @@ Private Property Let LetByRef(ByRef v As Variant, ByRef newValue As Variant)
     v = newValue
 End Property
 
-'*******************************************************************************
-'Unsigned Addition
+'Method purpose explanation at:
+'https://gist.github.com/cristianbuse/b9cc79164c1d31fdb30465f503ac36a9
 '
-'VBA does not allow the declaration of unsigned integers. The integers are
-'   always signed and can store both positive and negative numbers.
-'
-'-------------------------------------------------
-'Basic information on bits and bytes
-'-------------------------------------------------
-'Bit: a basic unit of information used in computing.
-'   Can only have one of two values: 0 or 1
-'Nibble: a set of 4 bits
-'   Can have binary values from 0000 to 1111 (0 to 15 in decimal notation)
-'   Ex. 1001 (bin) = 1*2^3 + 0*2^2 + 0*2^1 + 1*2^0 = 8 + 0 + 0 + 1 = 9 (dec)
-'Byte: unit of digital information that consists of 8 bits (or 2 nibbles)
-'   Can have binary values from 00000000 to 11111111 (0 to 255 in decimal)
-'   In VBA a Byte is an unsigned type
-'
-'-------------------------------------------------
-'Signed VBA Integer Data Types
-'-------------------------------------------------
-'Integer: 2 Bytes (16 bits)
-'   Can store values from -32,768 to 32,767 (decimal)
-'Long: 4 Bytes (32 bits)
-'   Can store values from -2,147,483,648 to 2,147,483,647 (decimal)
-'LongLong: 8 Bytes (or 64 bits)
-'   Values from -9,223,372,036,854,775,808 to 9,223,372,036,854,775,807 (decimal)
-'   Available only in x64 versions of Applications using VBA
-'
-'In VBA the "Two's complement" mathematical operation method is used to
-'   represent both negative and positive numbers (signed numbers)
-'   See: https://en.wikipedia.org/wiki/Two%27s_complement
-'   Ex. for 0101 (5), we reverse bits and add 1 and we get 1011 (-5)
-'In signed integers the left-most bit is used to indicate the sign, so, a value
-'   of 1 in the left-most bit indicates a negative number and a value of 0 in
-'   the left-most bit indicates a non-negative number (zero or positive)
-'
-'-------------------------------------------------
-'Unsigned vs Signed example
-'-------------------------------------------------
-'A 2-byte unsigned Integer would have binary values from 0000 0000 0000 0000 to
-'   1111 1111 1111 1111 (0 to 65,535 in decimal)
-'A 2-byte signed Integer has binary values from 0000 0000 0000 0000 to
-'   0111 1111 1111 1111 (positive 0 to 32,767 in decimal) and binary values from
-'   1000 0000 0000 0000 to 1111 1111 1111 1111 (negative -32,768 to -1 in decimal)
-'
-'-------------------------------------------------
-'Hexadecimal notation
-'-------------------------------------------------
-'Hex notation is a base-16 system where each digit is a value between 0 an 15
-'In Decimal, each digit is between 0 an 9 and in Binary each digit is 0 or 1
-'
-'In hex notation values from 0 to 9 are the same as in Decimal but values
-'   10 to 15 are written as A to F
-'So, a nibble corresponds to a digit in hex (0 to F) and a byte can be written
-'   as a 2 digit hex number with values from 00 to FF
-'
-'In VBA the hex numbers are prefixed by &H characters. 00 -> &H00; FF -> &HFF
-'   Ex.: &H7E = 7*16^1 + 15*16^0 = 126 (dec) or 0111 1110 in binary
-'
-'Hex notation provides a very convenient way to write byte values
-'
-'If a 2-byte Integer Type would be unsigned then it's values 0 to 65,535 could be
-'   written as &H0000 to &HFFFF but because the Integer Type is signed then it's
-'   values -32,768 to 32,767 could be written in hex as follows:
-'       1000000000000000 to 1111111111111111 (-32,768 to -1) as &H8000 to &HFFFF
-'       0000000000000000 to 0111111111111111 (0 to 32,767) as &H0000 to &H7FFF
-'
-'-------------------------------------------------
-'LongPtr
-'-------------------------------------------------
-'https://msdn.microsoft.com/en-us/vba/language-reference-vba/articles/longptr-data-type
-'Not a true data type. It transforms to Long(x32) or LongLong(x64)
-'
-'Long:
-'   -2,147,483,648 to -1 (dec) corresponds to &H80000000 to &HFFFFFFFF (hex)
-'    0 to +2,147,483,647 (dec) corresponds to &H00000000 to &H7FFFFFFF (hex)
-'LongLong:
-'    0 to +9,223,372,036,854,775,807 corresponds to &H0000000000000000 to &H7FFFFFFFFFFFFFFF
-'   -9,223,372,036,854,775,808 to -1 corresponds to &H8000000000000000 to &HFFFFFFFFFFFFFFFF
-'   https://msdn.microsoft.com/en-us/vba/language-reference-vba/articles/longlong-data-type
-'
-'Notes:
-'   To declare a value as Long in VBA the following suffix is used: &
-'   To declare a value as LongLong in VBA the following suffix is used: ^
-'   Example:
-'       &H8000  (Integer) = -32,768
-'       &H8000& (Long)    = +32,768
-'       &H80000000  (Long) =  -2,147,483,648 (can't be Integer; "&" not needed)
-'       &H80000000& (Long) =  -2,147,483,648
-'       &H80000000^ (LongLong) =  +2,147,483,648 (64-bit platforms only)
-'       &H8000000000000000 (LongLong) = will not compile!
-'       &H8000000000000000^ (LongLong) = -9,223,372,036,854,775,808
-'
-'-------------------------------------------------
-'Memory address
-'-------------------------------------------------
-'Memory addresses are fixed-length sequences of digits conventionally displayed
-'   and manipulated as unsigned integers
-'
-'When given a memory address as a signed integer and a positive increment, in
-'   order to find the correct address+increment, the 2 values must take
-'   into account the limits described above.
-'
-'-------------------------------------------------
-'Overflow Example
-'-------------------------------------------------
-'   Assume the 2 Long Integer numbers:
-'       A = &H7FFFFFFD (hex) = 2147483645 (dec)
-'       B = &H0000000C (hex) =         12 (dec)
-'   If the 2 integers would be Unsigned then their sum would be:
-'       S = A + B = &H7FFFFFFD + &H0000000C = &H80000009
-'       or in decimal
-'       S = A + B = 2147483645 +         12 = +2147483657
-'   But because the 2 integers are Signed then their sum exceeds the limit
-'       of 2,147,483,648 available in a Long data type
-'   In VBA, the signed number S = &H80000009 = -2147483639
-'
-'-------------------------------------------------
-'Aim of the function
-'-------------------------------------------------
-'The "UnsignedAddition" function avoids overflow errors as in the example above
-'   by adding the minimum negative value as needed
-'*******************************************************************************
-#If VBA7 Then
-Public Function UnsignedAddition(ByVal val1 As LongPtr, ByVal val2 As LongPtr) As LongPtr
-#Else
-Public Function UnsignedAddition(ByVal val1 As Long, ByVal val2 As Long) As Long
-#End If
-    'The minimum negative integer value of a Long Integer in VBA
-    #If Win64 Then
-    Const minNegative As LongLong = &H8000000000000000^ '-9,223,372,036,854,775,808 (dec)
-    #Else
-    Const minNegative As Long = &H80000000 '-2,147,483,648 (dec)
-    #End If
-    '
-    If val1 > 0 Then
-        If val2 > 0 Then
-            'Overflow could occur
-            If (val1 + minNegative + val2) < 0 Then
-                'The sum will not overflow
-                UnsignedAddition = val1 + val2
-            Else
-                'Example for Long data type (x32):
-                '   &H7FFFFFFD + &H0000000C =  &H80000009
-                '   2147483645 +         12 = -2147483639
-                UnsignedAddition = val1 + minNegative + val2 + minNegative
-            End If
-        Else 'Val2 <= 0
-            'Sum cannot overflow
-            UnsignedAddition = val1 + val2
-        End If
-    Else 'Val1 <= 0
-        If val2 > 0 Then
-            'Sum cannot overflow
-            UnsignedAddition = val1 + val2
-        Else 'Val2 <= 0
-            'Overflow could occur
-            On Error GoTo ErrorHandler
-            UnsignedAddition = val1 + val2
-        End If
-    End If
-Exit Function
-ErrorHandler:
-    Err.Raise 6, MODULE_NAME & ".UnsignedAddition", "Overflow"
+'Practical note Jan-2021 from Vladimir Vissoultchev (https://github.com/wqweto):
+'This is mostly not needed in client application code even for LARGEADDRESSAWARE
+'   32-bit processes nowadays as a reliable technique to prevent pointer
+'   arithmetic overflows is to VirtualAlloc a 64KB sentinel chunk around 2GB
+'   boundary at application start up so that the boundary is never (rarely)
+'   crossed in normal pointer operations.
+'This same sentinel chunk fixes native PropertyBag as well which has troubles
+'   when internal storage crosses 2GB boundary.
+#If Win64 Then
+Public Function UnsignedAdd(ByVal unsignedPtr As LongLong, ByVal signedOffset As LongLong) As LongLong
+    UnsignedAdd = ((unsignedPtr Xor &H8000000000000000^) + signedOffset) Xor &H8000000000000000^
 End Function
+#Else
+Public Function UnsignedAdd(ByVal unsignedPtr As Long, ByVal signedOffset As Long) As Long
+    UnsignedAdd = ((unsignedPtr Xor &H80000000) + signedOffset) Xor &H80000000
+End Function
+#End If
