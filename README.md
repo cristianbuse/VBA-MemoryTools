@@ -22,63 +22,7 @@ Just import the following code modules in your VBA Project:
 
 ## Demo
 
-```VBA
-Sub DemoMem()
-    #If VBA7 Then
-        Dim ptr As LongPtr
-    #Else
-        Dim ptr As Long
-    #End If
-    Dim i As Long
-    Dim arr() As Variant
-    ptr = ObjPtr(Application)
-    '
-    'Read Memory using MemByte
-    ReDim arr(0 To PTR_SIZE - 1)
-    For i = LBound(arr) To UBound(arr)
-        arr(i) = MemByte(UnsignedAddition(ptr, i))
-    Next i
-    Debug.Print Join(arr, " ")
-    '
-    'Read Memory using MemInt
-    ReDim arr(0 To PTR_SIZE / 2 - 1)
-    For i = LBound(arr) To UBound(arr)
-        arr(i) = MemInt(UnsignedAddition(ptr, i * 2))
-    Next i
-    Debug.Print Join(arr, " ")
-    '
-    'Read Memory using MemLong
-    ReDim arr(0 To PTR_SIZE / 4 - 1)
-    For i = LBound(arr) To UBound(arr)
-        arr(i) = MemLong(UnsignedAddition(ptr, i * 4))
-    Next i
-    Debug.Print Join(arr, " ")
-    '
-    'Read Memory using MemLongPtr
-    Debug.Print MemLongPtr(ptr)
-    '
-    'Write Memory using MemByte
-    ptr = 0
-    MemByte(VarPtr(ptr)) = 24
-    Debug.Assert ptr = 24
-    MemByte(UnsignedAddition(VarPtr(ptr), 2)) = 24
-    Debug.Assert ptr = 1572888
-    '
-    'Write Memory using MemInt
-    ptr = 0
-    MemInt(UnsignedAddition(VarPtr(ptr), 2)) = 300
-    Debug.Assert ptr = 19660800
-    '
-    'Write Memory using MemLong
-    ptr = 0
-    MemLong(VarPtr(ptr)) = 77777
-    Debug.Assert ptr = 77777
-    '
-    'Write Memory using MemLongPtr
-    MemLongPtr(VarPtr(ptr)) = ObjPtr(Application)
-    Debug.Assert ptr = ObjPtr(Application)
-End Sub
-```
+[DemoLibMemory.bas](https://github.com/cristianbuse/VBA-MemoryTools/blob/master/Code%20Modules/Demo%20Modules/DemoLibMemory.bas)
 
 ## Notes
 * CopyMemory API is also exposed just in case the 4 main methods are not satisfying the requirement (e.g. copy 50 bytes at once)
