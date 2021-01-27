@@ -6,7 +6,7 @@ Private Const LOOPS As Long = 10000
 
 Sub DemoMain()
     DemoMem
-    Debug.Print "-----------------------------------------------------"
+    Debug.Print String(55, "-")
     DemoMemByteSpeed
     DemoMemIntSpeed
     DemoMemLongSpeed
@@ -26,21 +26,21 @@ Sub DemoMem()
     'Read Memory using MemByte
     ReDim arr(0 To PTR_SIZE - 1)
     For i = LBound(arr) To UBound(arr)
-        arr(i) = MemByte(UnsignedAddition(ptr, i))
+        arr(i) = MemByte(ptr + i)
     Next i
     Debug.Print Join(arr, " ")
     '
     'Read Memory using MemInt
     ReDim arr(0 To PTR_SIZE / 2 - 1)
     For i = LBound(arr) To UBound(arr)
-        arr(i) = MemInt(UnsignedAddition(ptr, i * 2))
+        arr(i) = MemInt(ptr + i * 2)
     Next i
     Debug.Print Join(arr, " ")
     '
     'Read Memory using MemLong
     ReDim arr(0 To PTR_SIZE / 4 - 1)
     For i = LBound(arr) To UBound(arr)
-        arr(i) = MemLong(UnsignedAddition(ptr, i * 4))
+        arr(i) = MemLong(ptr + i * 4)
     Next i
     Debug.Print Join(arr, " ")
     '
@@ -51,12 +51,12 @@ Sub DemoMem()
     ptr = 0
     MemByte(VarPtr(ptr)) = 24
     Debug.Assert ptr = 24
-    MemByte(UnsignedAddition(VarPtr(ptr), 2)) = 24
+    MemByte(VarPtr(ptr) + 2) = 24
     Debug.Assert ptr = 1572888
     '
     'Write Memory using MemInt
     ptr = 0
-    MemInt(UnsignedAddition(VarPtr(ptr), 2)) = 300
+    MemInt(VarPtr(ptr) + 2) = 300
     Debug.Assert ptr = 19660800
     '
     'Write Memory using MemLong
