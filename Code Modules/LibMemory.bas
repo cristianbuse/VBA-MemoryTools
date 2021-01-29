@@ -59,14 +59,14 @@ Private Const MODULE_NAME As String = "LibMemory"
 
 #If Mac Then
     #If VBA7 Then
-        Public Declare PtrSafe Function CopyMemory Lib "/usr/lib/libc.dylib" Alias "memmove" (Destination As Any, source As Any, ByVal Length As LongPtr) As LongPtr
+        Public Declare PtrSafe Function CopyMemory Lib "/usr/lib/libc.dylib" Alias "memmove" (Destination As Any, Source As Any, ByVal Length As LongPtr) As LongPtr
     #Else
         Public Declare Function CopyMemory Lib "/usr/lib/libc.dylib" Alias "memmove" (Destination As Any, source As Any, ByVal Length As Long) As Long
     #End If
 #Else 'Windows
     'https://msdn.microsoft.com/en-us/library/mt723419(v=vs.85).aspx
     #If VBA7 Then
-        Public Declare PtrSafe Sub CopyMemory Lib "kernel32" Alias "RtlMoveMemory" (Destination As Any, source As Any, ByVal Length As LongPtr)
+        Public Declare PtrSafe Sub CopyMemory Lib "kernel32" Alias "RtlMoveMemory" (Destination As Any, Source As Any, ByVal Length As LongPtr)
     #Else
         Public Declare Sub CopyMemory Lib "kernel32" Alias "RtlMoveMemory" (Destination As Any, source As Any, ByVal Length As Long)
     #End If
@@ -110,89 +110,138 @@ Private m_remoteMemory As REMOTE_MEMORY
 '*******************************************************************************
 'Read/Write a Byte from/to memory
 '*******************************************************************************
-#If VBA7 Then
-Public Property Get MemByte(ByVal memAddress As LongPtr) As Byte
+#If Win64 Then
+Public Property Get MemByte(ByVal memAddress As LongLong) As Byte
 #Else
 Public Property Get MemByte(ByVal memAddress As Long) As Byte
 #End If
-    DeRefMem m_remoteMemory, memAddress, vbByte
-    MemByte = m_remoteMemory.memValue
+    #If Mac Then
+        CopyMemory MemByte, ByVal memAddress, 1
+    #Else
+        DeRefMem m_remoteMemory, memAddress, vbByte
+        MemByte = m_remoteMemory.memValue
+        m_remoteMemory.memValue = Empty
+    #End If
 End Property
-#If VBA7 Then
-Public Property Let MemByte(ByVal memAddress As LongPtr, ByVal newValue As Byte)
+#If Win64 Then
+Public Property Let MemByte(ByVal memAddress As LongLong, ByVal newValue As Byte)
 #Else
 Public Property Let MemByte(ByVal memAddress As Long, ByVal newValue As Byte)
 #End If
-    DeRefMem m_remoteMemory, memAddress, vbByte
-    LetByRef(m_remoteMemory.memValue) = newValue
+    #If Mac Then
+        CopyMemory ByVal memAddress, newValue, 1
+    #Else
+        DeRefMem m_remoteMemory, memAddress, vbByte
+        LetByRef(m_remoteMemory.memValue) = newValue
+        m_remoteMemory.memValue = Empty
+    #End If
 End Property
 
 '*******************************************************************************
 'Read/Write 2 Bytes (Integer) from/to memory
 '*******************************************************************************
-#If VBA7 Then
-Public Property Get MemInt(ByVal memAddress As LongPtr) As Integer
+#If Win64 Then
+Public Property Get MemInt(ByVal memAddress As LongLong) As Integer
 #Else
 Public Property Get MemInt(ByVal memAddress As Long) As Integer
 #End If
-    DeRefMem m_remoteMemory, memAddress, vbInteger
-    MemInt = m_remoteMemory.memValue
+    #If Mac Then
+        CopyMemory MemInt, ByVal memAddress, 2
+    #Else
+        DeRefMem m_remoteMemory, memAddress, vbInteger
+        MemInt = m_remoteMemory.memValue
+        m_remoteMemory.memValue = Empty
+    #End If
 End Property
 
-#If VBA7 Then
-Public Property Let MemInt(ByVal memAddress As LongPtr, ByVal newValue As Integer)
+#If Win64 Then
+Public Property Let MemInt(ByVal memAddress As LongLong, ByVal newValue As Integer)
 #Else
 Public Property Let MemInt(ByVal memAddress As Long, ByVal newValue As Integer)
 #End If
-    DeRefMem m_remoteMemory, memAddress, vbInteger
-    LetByRef(m_remoteMemory.memValue) = newValue
+    #If Mac Then
+        CopyMemory ByVal memAddress, newValue, 2
+    #Else
+        DeRefMem m_remoteMemory, memAddress, vbInteger
+        LetByRef(m_remoteMemory.memValue) = newValue
+        m_remoteMemory.memValue = Empty
+    #End If
 End Property
 
 '*******************************************************************************
 'Read/Write 4 Bytes (Long) from/to memory
 '*******************************************************************************
-#If VBA7 Then
-Public Property Get MemLong(ByVal memAddress As LongPtr) As Long
+#If Win64 Then
+Public Property Get MemLong(ByVal memAddress As LongLong) As Long
 #Else
 Public Property Get MemLong(ByVal memAddress As Long) As Long
 #End If
-    DeRefMem m_remoteMemory, memAddress, vbLong
-    MemLong = m_remoteMemory.memValue
+    #If Mac Then
+        CopyMemory MemLong, ByVal memAddress, 4
+    #Else
+        DeRefMem m_remoteMemory, memAddress, vbLong
+        MemLong = m_remoteMemory.memValue
+        m_remoteMemory.memValue = Empty
+    #End If
 End Property
-#If VBA7 Then
-Public Property Let MemLong(ByVal memAddress As LongPtr, ByVal newValue As Long)
+#If Win64 Then
+Public Property Let MemLong(ByVal memAddress As LongLong, ByVal newValue As Long)
 #Else
 Public Property Let MemLong(ByVal memAddress As Long, ByVal newValue As Long)
 #End If
-    DeRefMem m_remoteMemory, memAddress, vbLong
-    LetByRef(m_remoteMemory.memValue) = newValue
+    #If Mac Then
+        CopyMemory ByVal memAddress, newValue, 4
+    #Else
+        DeRefMem m_remoteMemory, memAddress, vbLong
+        LetByRef(m_remoteMemory.memValue) = newValue
+        m_remoteMemory.memValue = Empty
+    #End If
 End Property
 
 '*******************************************************************************
 'Read/Write 8 Bytes (LongLong) from/to memory
 '*******************************************************************************
-#If VBA7 Then
-Public Property Get MemLongPtr(ByVal memAddress As LongPtr) As LongPtr
-#Else
-Public Property Get MemLongPtr(ByVal memAddress As Long) As Long
-#End If
-    DeRefMem m_remoteMemory, memAddress, vbLongPtr
-    MemLongPtr = m_remoteMemory.memValue
+#If Win64 Then
+Public Property Get MemLongLong(ByVal memAddress As LongLong) As LongLong
+    #If Mac Then
+        CopyMemory MemLongLong, ByVal memAddress, 8
+    #Else
+        DeRefMem m_remoteMemory, memAddress, vbLongLong
+        MemLongLong = m_remoteMemory.memValue
+        m_remoteMemory.memValue = Empty
+    #End If
 End Property
-#If VBA7 Then
-Public Property Let MemLongPtr(ByVal memAddress As LongPtr, ByVal newValue As LongPtr)
-#Else
-Public Property Let MemLongPtr(ByVal memAddress As Long, ByVal newValue As Long)
-#End If
-    #If Win64 Then
+Public Property Let MemLongLong(ByVal memAddress As LongLong, ByVal newValue As LongLong)
+    #If Mac Then
+        CopyMemory ByVal memAddress, newValue, 8
+    #Else
         'Cannot set Variant/LongLong ByRef so we use a Currency instead
         Const currDivider As Currency = 10000
         DeRefMem m_remoteMemory, memAddress, vbCurrency
         LetByRef(m_remoteMemory.memValue) = CCur(newValue / currDivider)
-    #Else
-        MemLong(memAddress) = newValue
+        m_remoteMemory.memValue = Empty
     #End If
 End Property
+#End If
+
+'*******************************************************************************
+'Read/Write 4 Bytes (Long on x32) or 8 Bytes (LongLong on x64) from/to memory
+'*******************************************************************************
+#If Win64 Then
+Public Property Get MemLongPtr(ByVal memAddress As LongLong) As LongLong
+    MemLongPtr = MemLongLong(memAddress)
+End Property
+Public Property Let MemLongPtr(ByVal memAddress As LongLong, ByVal newValue As LongLong)
+    MemLongLong(memAddress) = newValue
+End Property
+#Else
+Public Property Get MemLongPtr(ByVal memAddress As Long) As Long
+    MemLongPtr = MemLong(memAddress)
+End Property
+Public Property Let MemLongPtr(ByVal memAddress As Long, ByVal newValue As Long)
+    MemLong(memAddress) = newValue
+End Property
+#End If
 
 '*******************************************************************************
 'Redirects the rm.memValue Variant to the new memory address so that the value
