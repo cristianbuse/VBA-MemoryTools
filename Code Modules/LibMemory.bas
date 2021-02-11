@@ -289,3 +289,122 @@ Public Function UnsignedAdd(ByVal unsignedPtr As Long, ByVal signedOffset As Lon
     UnsignedAdd = ((unsignedPtr Xor &H80000000) + signedOffset) Xor &H80000000
 End Function
 #End If
+
+'*******************************************************************************
+'Redirects the instance of a class to another instance of the same class within
+'   the scope of a private class Function (not  Sub) where the call happens.
+'
+'Warning! ONLY call this method from a Private Function of a class!
+'
+'vbArray + vbString Function return type is not supported. It would be
+'   possible to find the correct address by reading memory in a loop but there
+'   would be no checking available
+'*******************************************************************************
+#If Win64 Then
+Public Sub RedirectInstance(ByVal funcReturnPtr As LongLong _
+                          , ByVal currentInstance As Object _
+                          , ByVal targetInstance As Object)
+#Else
+Public Sub RedirectInstance(ByVal funcReturnPtr As Long _
+                          , ByVal currentInstance As Object _
+                          , ByVal targetInstance As Object)
+#End If
+    Const methodName As String = "RedirectInstance"
+    #If Win64 Then
+        Dim originalPtr As LongLong
+        Dim newPtr As LongLong
+        Dim swapAddress As LongLong
+    #Else
+        Dim originalPtr As Long
+        Dim newPtr As Long
+        Dim swapAddress As Long
+    #End If
+    '
+    originalPtr = ObjPtr(GetDefaultInterface(currentInstance))
+    newPtr = ObjPtr(GetDefaultInterface(targetInstance))
+    '
+    'Validate Input
+    If currentInstance Is Nothing Or targetInstance Is Nothing Then
+        Err.Raise 91, methodName, "Object not set"
+    ElseIf MemLongPtr(originalPtr) <> MemLongPtr(newPtr) Then 'Faster to compare vTables than to compare TypeName(s)
+        Err.Raise 5, methodName, "Expected same VB class"
+    ElseIf funcReturnPtr = 0 Then
+        Err.Raise 5, methodName, "Missing Function Return Pointer"
+    End If
+    '
+    'On x64 the shadow stack space is allocated next to the Function Return
+    'On x32 the stack space has a fixed offset (found through testing)
+    #If Win64 Then
+        Const memOffsetNonVariant As LongLong = PTR_SIZE
+        Const memOffsetVariant As LongLong = PTR_SIZE * 3
+    #Else
+        Const memOffsetNonVariant As Long = PTR_SIZE * 28
+        Const memOffsetVariant As Long = PTR_SIZE * 31
+    #End If
+    '
+    swapAddress = FindSwapAddress(funcReturnPtr, memOffsetNonVariant, originalPtr)
+    If swapAddress = 0 Then
+        swapAddress = FindSwapAddress(funcReturnPtr, memOffsetVariant, originalPtr)
+        If swapAddress = 0 Then
+            Err.Raise 5, methodName, "Invalid input or not called " _
+            & "from class Function or vbArray + vbString function return type"
+        End If
+    End If
+    '
+    'Redirect Instance
+    MemLongPtr(swapAddress) = newPtr
+End Sub
+
+'*******************************************************************************
+'Finds the swap address (address of the instance pointer on the stack)
+'*******************************************************************************
+#If Win64 Then
+Private Function FindSwapAddress(ByVal funcReturnPtr As LongLong _
+                               , ByVal memOffset As LongLong _
+                               , ByVal originalPtr As LongLong) As LongLong
+    Dim swapAddr As LongLong: swapAddr = funcReturnPtr + memOffset
+    If MemLongLong(swapAddr) = originalPtr Then
+        FindSwapAddress = swapAddr
+    End If
+End Function
+#Else
+Private Function FindSwapAddress(ByVal funcReturnPtr As Long _
+                               , ByVal memOffset As Long _
+                               , ByVal originalPtr As Long) As Long
+    Dim startAddr As Long: startAddr = funcReturnPtr + memOffset
+    Dim swapAddr As Long
+    '
+    'Adjust memory alignment for Boolean/Byte/Integer function return type
+    startAddr = startAddr - (startAddr Mod PTR_SIZE)
+    '
+    swapAddr = GetSwapIndirectAddress(startAddr)
+    If swapAddr = 0 Then
+        'Adjust mem alignment for Currency/Date/Double function return type
+        swapAddr = GetSwapIndirectAddress(startAddr + PTR_SIZE)
+        If swapAddr = 0 Then Exit Function
+    End If
+    If MemLongPtr(swapAddr) = originalPtr Then
+        FindSwapAddress = swapAddr
+    End If
+End Function
+Private Function GetSwapIndirectAddress(ByVal startAddr As Long) As Long
+    Const maxOffset As Long = PTR_SIZE * 100
+    Dim swapAddr As Long: swapAddr = MemLong(startAddr) + PTR_SIZE * 2
+    '
+    'Check if the address is within acceptable limits. The address
+    '   of the instance pointer (within the stack frame) cannot be too far
+    '   from the function return address (first offsetted to startAddr)
+    If startAddr < swapAddr And swapAddr - startAddr < maxOffset * PTR_SIZE Then
+        GetSwapIndirectAddress = swapAddr
+    End If
+End Function
+#End If
+
+'*******************************************************************************
+'Returns the default interface for an object
+'Casting from IUnknown to IDispatch (Object) forces a call to QueryInterface for
+'   the IDispatch interface (which knows about the default interface)
+'*******************************************************************************
+Private Function GetDefaultInterface(ByVal obj As IUnknown) As Object
+    Set GetDefaultInterface = obj
+End Function

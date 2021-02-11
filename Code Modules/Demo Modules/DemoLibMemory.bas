@@ -13,6 +13,24 @@ Sub DemoMain()
     DemoMemLongPtrSpeed
 End Sub
 
+Public Sub DemoInstanceRedirection()
+    Const loopsCount As Long = 100000
+    Dim i As Long
+    Dim t As Double
+    '
+    t = Timer
+    For i = 1 To loopsCount
+        Debug.Assert DemoClass.Factory2(i).ID = i
+    Next i
+    Debug.Print "Public  Init (seconds): " & VBA.Round(Timer - t, 3)
+    '
+    t = Timer
+    For i = 1 To loopsCount
+        Debug.Assert DemoClass.Factory(i).ID = i
+    Next i
+    Debug.Print "Private Init (seconds): " & VBA.Round(Timer - t, 3)
+End Sub
+
 Sub DemoMem()
     #If VBA7 Then
         Dim ptr As LongPtr
