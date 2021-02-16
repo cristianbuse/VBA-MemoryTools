@@ -363,6 +363,12 @@ Private Function FindSwapAddress(ByVal funcReturnPtr As LongLong _
                                , ByVal memOffset As LongLong _
                                , ByVal originalPtr As LongLong) As LongLong
     Dim swapAddr As LongLong: swapAddr = funcReturnPtr + memOffset
+    '
+    'Adjust alignment for Boolean/Byte/Integer/Long function return type
+    'Needed on #Mac but not on #Win (at least not found in testing)
+    'Safer to have for #Win as well
+    swapAddr = swapAddr - (swapAddr Mod PTR_SIZE)
+    '
     If MemLongLong(swapAddr) = originalPtr Then
         FindSwapAddress = swapAddr
     End If
