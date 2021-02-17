@@ -17,11 +17,15 @@ Same technique used [here](https://github.com/cristianbuse/VBA-WeakReference) wa
 
 A function for UnsignedAddition of Integers is also exposed.
 
+See ```DemoMain``` method in the Demo module.
+
 ## Class Instance Redirection
 
 Class instance redirection is now supported. This allows Private Class Initializers thus achieving true immutabilty.
 Simply call the ```RedirectInstance``` method within a ```Private Function``` of any VB class to gain access to other instances of the same class.
-Related [Code Review question](https://codereview.stackexchange.com/questions/253233/private-vba-class-initializer-called-from-factory-2)
+Related [Code Review question](https://codereview.stackexchange.com/questions/253233/private-vba-class-initializer-called-from-factory-2).
+
+See ```DemoInstanceRedirection``` method in the Demo module.
 
 ## Installation
 Just import the following code modules in your VBA Project:
