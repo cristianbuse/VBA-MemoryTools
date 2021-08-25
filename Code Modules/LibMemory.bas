@@ -109,6 +109,38 @@ Public Const VT_BYREF As Long = &H4000
 Private m_remoteMemory As REMOTE_MEMORY
 
 '*******************************************************************************
+'Returns an initialized (linked) REMOTE_MEMORY struct
+'Links .remoteVt to the first 2 bytes of .memValue
+'*******************************************************************************
+Public Sub InitRemoteMemory(ByRef rm As REMOTE_MEMORY)
+    rm.remoteVT = VarPtr(rm.memValue)
+    MemIntAPI(VarPtr(rm.remoteVT)) = vbInteger + VT_BYREF
+    rm.isInitialized = True
+End Sub
+
+'*******************************************************************************
+'The only method in this module that uses CopyMemory!
+'Assures that InitRemoteMemory can link the Var Type for new structs
+'*******************************************************************************
+#If Win64 Then
+Private Property Let MemIntAPI(ByVal memAddress As LongLong, ByVal newValue As Integer)
+#Else
+Private Property Let MemIntAPI(ByVal memAddress As Long, ByVal newValue As Integer)
+#End If
+    Static rm As REMOTE_MEMORY
+    If Not rm.isInitialized Then 'Link .remoteVt to .memValue's first 2 bytes
+        rm.remoteVT = VarPtr(rm.memValue)
+        CopyMemory rm.remoteVT, vbInteger + VT_BYREF, 2
+        rm.isInitialized = True
+    End If
+    rm.memValue = memAddress
+    LetByRefVT(rm.remoteVT) = vbInteger + VT_BYREF
+    '
+    LetByRefInt(rm.memValue) = newValue
+    rm.memValue = Empty
+End Property
+
+'*******************************************************************************
 'Read/Write a Byte from/to memory
 '*******************************************************************************
 #If Win64 Then
@@ -275,15 +307,13 @@ End Function
 '*******************************************************************************
 'Redirects the REMOTE_MEMORY.memValue Variant to the new memory address
 '*******************************************************************************
-Private Sub LinkMem(ByRef rm As REMOTE_MEMORY _
-                  , ByRef memAddress As LongPtr _
-                  , ByRef vt As VbVarType)
-    If Not rm.isInitialized Then 'Link .remoteVt to .memValue's first 2 bytes
-        rm.remoteVT = VarPtr(rm.memValue)
-        CopyMemory rm.remoteVT, vbInteger + VT_BYREF, 2
-        rm.isInitialized = True
-    End If
-    rm.memValue = memAddress
+#If Win64 Then
+Private Sub LinkMem(ByRef rm As REMOTE_MEMORY, ByRef memAddr As LongLong, ByRef vt As VbVarType)
+#Else
+Private Sub LinkMem(ByRef rm As REMOTE_MEMORY, ByRef memAddr As Long, ByRef vt As VbVarType)
+#End If
+    If Not rm.isInitialized Then InitRemoteMemory rm
+    rm.memValue = memAddr
     LetByRefVT(rm.remoteVT) = vt
 End Sub
 
