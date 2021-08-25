@@ -11,6 +11,7 @@ Sub DemoMain()
     DemoMemIntSpeed
     DemoMemLongSpeed
     DemoMemLongPtrSpeed
+    DemoMemObjectSpeed
 End Sub
 
 Public Sub DemoInstanceRedirection()
@@ -180,6 +181,27 @@ Sub DemoMemLongPtrSpeed()
         CopyMemory x1, x2, 1
     Next i
     Debug.Print "Copy <" & TypeName(x1) & "> By API " & Format$(LOOPS, "#,##0") _
+        & " times in " & Round(Timer - t, 3) & " seconds"
+    DoEvents
+End Sub
+
+Sub DemoMemObjectSpeed()
+    Dim i As Long
+    Dim t As Double
+    Dim d As DemoClass: Set d = New DemoClass
+    Dim obj As Object
+    #If Win64 Then
+        Dim ptr As LongLong
+    #Else
+        Dim ptr As Long
+    #End If
+    '
+    ptr = ObjPtr(d)
+    t = Timer
+    For i = 1 To LOOPS
+        Set obj = MemObject(ptr)
+    Next i
+    Debug.Print "Dereferenced an Object " & Format$(LOOPS, "#,##0") _
         & " times in " & Round(Timer - t, 3) & " seconds"
     DoEvents
 End Sub
