@@ -41,16 +41,19 @@ Option Private Module
 ''  used to manipulate the VarType of the 'memValue' that we want to read/write.
 ''  The remote manipulation of the VarType is done by setting the VT_BYREF flag
 ''  on the 'remoteVT' Variant. This is done by using a CopyMemory API but only
-''  once per initialization of the REMOTE_MEMORY variable. Once the flag is set,
-''  the 'remoteVT' is used to change the VarType of the first Variant just by
-''  using a native VBA assignment operation (needs a utility method for correct
-''  redirection). In order for the 'memValue' Variant to point to a specific
-''  memory address, 2 steps are needed:
+''  once per initialization of the REMOTE_MEMORY variable (see MemIntAPI). Note
+''  that besides the Static REMOTE_MEMORY used in MemIntAPI all the other memory
+''  structs are initialized through InitRemoteMemory with no API calls. Once the
+''  flag is set the 'remoteVT' is used to change the VarType of the first
+''  Variant just by using a native VBA assignment operation (needs a utility
+''  method for correct redirection). In order for the 'memValue' Variant to
+''  point to aspecific memory address, 2 steps are needed:
 ''   1) the required address is assigned to the 'memValue' Variant
 ''   2) the VarType of the 'memValue' Variant is remotely changed via the
-''      'remoteVT' Variant while making sure the VT_BYREF flag is also set
+''      'remoteVT' Variant (through LetByRefVT) while making sure the VT_BYREF
+''      flag is also set
 ''
-'' Note that the 'DeRefMem' method could have been a function returning a
+'' Note that the 'LinkMem' method could have been a function returning a
 ''  REMOTE_MEMORY type and thus greatly improving readability but this approach
 ''  proved to be 2x slower in testing
 '*******************************************************************************
