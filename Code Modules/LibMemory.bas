@@ -61,14 +61,14 @@ Private Const MODULE_NAME As String = "LibMemory"
     #If VBA7 Then
         Public Declare PtrSafe Function CopyMemory Lib "/usr/lib/libc.dylib" Alias "memmove" (Destination As Any, Source As Any, ByVal Length As LongPtr) As LongPtr
     #Else
-        Public Declare Function CopyMemory Lib "/usr/lib/libc.dylib" Alias "memmove" (Destination As Any, source As Any, ByVal Length As Long) As Long
+        Public Declare Function CopyMemory Lib "/usr/lib/libc.dylib" Alias "memmove" (Destination As Any, Source As Any, ByVal Length As Long) As Long
     #End If
 #Else 'Windows
     'https://msdn.microsoft.com/en-us/library/mt723419(v=vs.85).aspx
     #If VBA7 Then
         Public Declare PtrSafe Sub CopyMemory Lib "kernel32" Alias "RtlMoveMemory" (Destination As Any, Source As Any, ByVal Length As LongPtr)
     #Else
-        Public Declare Sub CopyMemory Lib "kernel32" Alias "RtlMoveMemory" (Destination As Any, source As Any, ByVal Length As Long)
+        Public Declare Sub CopyMemory Lib "kernel32" Alias "RtlMoveMemory" (Destination As Any, Source As Any, ByVal Length As Long)
     #End If
 #End If
 
@@ -263,9 +263,24 @@ Private Sub DeRefMem(ByRef rm As REMOTE_MEMORY, ByRef memAddress As LongPtr, ByR
 End Sub
 
 '*******************************************************************************
-'Utility for updating remote values that have the VT_BYREF flag set
+'Utilities for updating remote values that have the VT_BYREF flag set
 '*******************************************************************************
 Private Property Let LetByRef(ByRef v As Variant, ByRef newValue As Variant)
+    v = newValue
+End Property
+Private Property Let LetByRefVT(ByRef v As Variant, ByRef vt As VbVarType)
+    v = vt
+End Property
+Private Property Let LetByRefByte(ByRef v As Variant, ByRef newValue As Byte)
+    v = newValue
+End Property
+Private Property Let LetByRefInt(ByRef v As Variant, ByRef newValue As Integer)
+    v = newValue
+End Property
+Private Property Let LetByRefLong(ByRef v As Variant, ByRef newValue As Long)
+    v = newValue
+End Property
+Private Property Let LetByRefCurr(ByRef v As Variant, ByRef newValue As Currency)
     v = newValue
 End Property
 
