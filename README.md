@@ -6,7 +6,7 @@ Using CopyMemory API (RtlMoveMemory on Windows) is quite slow when used many tim
 Related [Code Review question](https://codereview.stackexchange.com/questions/252659/fast-native-memory-manipulation-in-vba)
 
 ## Implementation
-Same technique used [here](https://github.com/cristianbuse/VBA-WeakReference) was implemented. A remote Variant allows the changing of the VarType on a second Variant which in turn reads memory remotely as well (has VT_BYREF flag set). A single CopyMemory API call is done when initializing the mentioned remote VarType. Subsequent usage relies on native VBA code only.
+Same technique used [here](https://codereview.stackexchange.com/a/249125/227582) was implemented. A remote Variant allows the changing of the VarType on a second Variant which in turn reads memory remotely as well (has VT_BYREF flag set). A single CopyMemory API call is done when initializing the mentioned remote VarType. Subsequent usage relies on native VBA code only.
 
 5 main parametric properties (Get/Let) are exposed:
  1. MemByte
@@ -15,7 +15,10 @@ Same technique used [here](https://github.com/cristianbuse/VBA-WeakReference) wa
  4. MemLongPtr
  5. MemLongLong (x64 only)
 
-A function for UnsignedAddition of Integers is also exposed.
+A few other utilities:
+ - GetDefaultInterface
+ - MemObject (dereferences a pointer and returns an Object)
+ - UnsignedAddition
 
 See ```DemoMain``` method in the Demo module.
 
@@ -29,11 +32,12 @@ See ```DemoInstanceRedirection``` method in the Demo module.
 
 ## Installation
 Just import the following code modules in your VBA Project:
-* **LibMemory.bas**
+* [**LibMemory.bas**](https://github.com/cristianbuse/VBA-MemoryTools/blob/master/src/LibMemory.bas)
 
 ## Demo
-
-[DemoLibMemory.bas](https://github.com/cristianbuse/VBA-MemoryTools/blob/master/Code%20Modules/Demo%20Modules/DemoLibMemory.bas)
+Import the following code modules in your VBA Project:
+* [DemoLibMemory.bas](https://github.com/cristianbuse/VBA-MemoryTools/blob/master/src/Demo/DemoLibMemory.bas) - run ```DemoMain```
+* [Demo folder](https://github.com/cristianbuse/VBA-MemoryTools/blob/master/src/Demo/DemoClass.cls)
 
 ## Notes
 * CopyMemory API is also exposed just in case the main methods are not satisfying the requirement (e.g. copy 50 bytes at once)
