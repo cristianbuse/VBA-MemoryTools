@@ -95,7 +95,7 @@ Private Const MODULE_NAME As String = "LibMemory"
     Public Const vbLongPtr As Long = vbLong
 #End If
 
-Private Type REMOTE_MEMORY
+Public Type REMOTE_MEMORY
     memValue As Variant
     remoteVT As Variant
     isInitialized As Boolean 'In case state is lost
