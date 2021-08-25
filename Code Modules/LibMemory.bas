@@ -245,6 +245,29 @@ End Property
 #End If
 
 '*******************************************************************************
+'Dereference an object by it's pointer
+'*******************************************************************************
+#If Win64 Then
+Public Function MemObject(ByVal memAddress As LongLong) As Object
+#Else
+Public Function MemObject(ByVal memAddress As Long) As Object
+#End If
+    If memAddress = 0 Then Exit Function
+    '
+    #If Mac Then
+        Dim obj As Object
+        CopyMemory obj, memAddress, PTR_SIZE
+        Set MemObject = obj
+        memAddress = 0 'We don't just use 0 (below) because we need 0& or 0^
+        CopyMemory obj, memAddress, PTR_SIZE
+    #Else
+        LinkMem m_remoteMemory, memAddress, vbObject
+        Set MemObject = m_remoteMemory.memValue
+        LetByRefVT(m_remoteMemory.remoteVT) = vbEmpty 'To avoid extra Release
+    #End If
+End Function
+
+'*******************************************************************************
 'Redirects the REMOTE_MEMORY.memValue Variant to the new memory address
 '*******************************************************************************
 Private Sub LinkMem(ByRef rm As REMOTE_MEMORY _
