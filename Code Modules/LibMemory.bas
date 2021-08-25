@@ -133,7 +133,7 @@ Public Property Let MemByte(ByVal memAddress As Long, ByVal newValue As Byte)
         CopyMemory ByVal memAddress, newValue, 1
     #Else
         DeRefMem m_remoteMemory, memAddress, vbByte
-        LetByRef(m_remoteMemory.memValue) = newValue
+        LetByRefByte(m_remoteMemory.memValue) = newValue
         m_remoteMemory.memValue = Empty
     #End If
 End Property
@@ -164,7 +164,7 @@ Public Property Let MemInt(ByVal memAddress As Long, ByVal newValue As Integer)
         CopyMemory ByVal memAddress, newValue, 2
     #Else
         DeRefMem m_remoteMemory, memAddress, vbInteger
-        LetByRef(m_remoteMemory.memValue) = newValue
+        LetByRefInt(m_remoteMemory.memValue) = newValue
         m_remoteMemory.memValue = Empty
     #End If
 End Property
@@ -194,7 +194,7 @@ Public Property Let MemLong(ByVal memAddress As Long, ByVal newValue As Long)
         CopyMemory ByVal memAddress, newValue, 4
     #Else
         DeRefMem m_remoteMemory, memAddress, vbLong
-        LetByRef(m_remoteMemory.memValue) = newValue
+        LetByRefLong(m_remoteMemory.memValue) = newValue
         m_remoteMemory.memValue = Empty
     #End If
 End Property
@@ -219,7 +219,7 @@ Public Property Let MemLongLong(ByVal memAddress As LongLong, ByVal newValue As 
         'Cannot set Variant/LongLong ByRef so we use a Currency instead
         Const currDivider As Currency = 10000
         DeRefMem m_remoteMemory, memAddress, vbCurrency
-        LetByRef(m_remoteMemory.memValue) = CCur(newValue / currDivider)
+        LetByRefCurr(m_remoteMemory.memValue) = CCur(newValue / currDivider)
         m_remoteMemory.memValue = Empty
     #End If
 End Property
@@ -259,16 +259,13 @@ Private Sub DeRefMem(ByRef rm As REMOTE_MEMORY, ByRef memAddress As LongPtr, ByR
         End If
         'Link .memValue to the desired address
         .memValue = memAddress
-        LetByRef(.remoteVT) = vt + VT_BYREF 'Faster than: CopyMemory .memValue, vt + VT_BYREF, 2
+        LetByRefVT(.remoteVT) = vt + VT_BYREF 'Faster than: CopyMemory .memValue, vt + VT_BYREF, 2
     End With
 End Sub
 
 '*******************************************************************************
 'Utilities for updating remote values that have the VT_BYREF flag set
 '*******************************************************************************
-Private Property Let LetByRef(ByRef v As Variant, ByRef newValue As Variant)
-    v = newValue
-End Property
 Private Property Let LetByRefVT(ByRef v As Variant, ByRef vt As VbVarType)
     v = vt
 End Property
