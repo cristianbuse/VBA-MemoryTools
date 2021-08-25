@@ -261,10 +261,15 @@ Public Function MemObject(ByVal memAddress As Long) As Object
         memAddress = 0 'We don't just use 0 (below) because we need 0& or 0^
         CopyMemory obj, memAddress, PTR_SIZE
     #Else
-        LinkMem m_remoteMemory, memAddress, vbObject
-        Set MemObject = m_remoteMemory.memValue
-        LetByRefVT(m_remoteMemory.remoteVT) = vbEmpty 'To avoid extra Release
+        m_remoteMemory.memValue = memAddress
+        Set MemObject = RemObject(m_remoteMemory.remoteVT, m_remoteMemory)
     #End If
+End Function
+'Utility - avoids extra stack frames by not calling LetByRefVT twice
+Private Function RemObject(ByRef vt As Variant, ByRef rm As REMOTE_MEMORY) As Object
+    vt = vbObject
+    Set RemObject = rm.memValue
+    vt = vbLongPtr
 End Function
 
 '*******************************************************************************
