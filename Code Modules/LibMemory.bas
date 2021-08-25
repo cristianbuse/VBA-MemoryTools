@@ -478,6 +478,6 @@ End Function
 'Casting from IUnknown to IDispatch (Object) forces a call to QueryInterface for
 '   the IDispatch interface (which knows about the default interface)
 '*******************************************************************************
-Private Function GetDefaultInterface(ByVal obj As IUnknown) As Object
+Public Function GetDefaultInterface(ByVal obj As IUnknown) As Object
     Set GetDefaultInterface = obj
 End Function
