@@ -296,6 +296,7 @@ Public Function MemObject(ByVal memAddress As Long) As Object
         memAddress = 0 'We don't just use 0 (below) because we need 0& or 0^
         CopyMemory obj, memAddress, PTR_SIZE
     #Else
+        If Not m_remoteMemory.isInitialized Then InitRemoteMemory m_remoteMemory
         m_remoteMemory.memValue = memAddress
         Set MemObject = RemObject(m_remoteMemory.remoteVT, m_remoteMemory)
     #End If
