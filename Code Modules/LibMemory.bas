@@ -119,7 +119,7 @@ Public Property Get MemByte(ByVal memAddress As Long) As Byte
     #If Mac Then
         CopyMemory MemByte, ByVal memAddress, 1
     #Else
-        DeRefMem m_remoteMemory, memAddress, vbByte
+        LinkMem m_remoteMemory, memAddress, vbByte + VT_BYREF
         MemByte = m_remoteMemory.memValue
         m_remoteMemory.memValue = Empty
     #End If
@@ -132,7 +132,7 @@ Public Property Let MemByte(ByVal memAddress As Long, ByVal newValue As Byte)
     #If Mac Then
         CopyMemory ByVal memAddress, newValue, 1
     #Else
-        DeRefMem m_remoteMemory, memAddress, vbByte
+        LinkMem m_remoteMemory, memAddress, vbByte + VT_BYREF
         LetByRefByte(m_remoteMemory.memValue) = newValue
         m_remoteMemory.memValue = Empty
     #End If
@@ -149,7 +149,7 @@ Public Property Get MemInt(ByVal memAddress As Long) As Integer
     #If Mac Then
         CopyMemory MemInt, ByVal memAddress, 2
     #Else
-        DeRefMem m_remoteMemory, memAddress, vbInteger
+        LinkMem m_remoteMemory, memAddress, vbInteger + VT_BYREF
         MemInt = m_remoteMemory.memValue
         m_remoteMemory.memValue = Empty
     #End If
@@ -163,7 +163,7 @@ Public Property Let MemInt(ByVal memAddress As Long, ByVal newValue As Integer)
     #If Mac Then
         CopyMemory ByVal memAddress, newValue, 2
     #Else
-        DeRefMem m_remoteMemory, memAddress, vbInteger
+        LinkMem m_remoteMemory, memAddress, vbInteger + VT_BYREF
         LetByRefInt(m_remoteMemory.memValue) = newValue
         m_remoteMemory.memValue = Empty
     #End If
@@ -180,7 +180,7 @@ Public Property Get MemLong(ByVal memAddress As Long) As Long
     #If Mac Then
         CopyMemory MemLong, ByVal memAddress, 4
     #Else
-        DeRefMem m_remoteMemory, memAddress, vbLong
+        LinkMem m_remoteMemory, memAddress, vbLong + VT_BYREF
         MemLong = m_remoteMemory.memValue
         m_remoteMemory.memValue = Empty
     #End If
@@ -193,7 +193,7 @@ Public Property Let MemLong(ByVal memAddress As Long, ByVal newValue As Long)
     #If Mac Then
         CopyMemory ByVal memAddress, newValue, 4
     #Else
-        DeRefMem m_remoteMemory, memAddress, vbLong
+        LinkMem m_remoteMemory, memAddress, vbLong + VT_BYREF
         LetByRefLong(m_remoteMemory.memValue) = newValue
         m_remoteMemory.memValue = Empty
     #End If
@@ -207,7 +207,7 @@ Public Property Get MemLongLong(ByVal memAddress As LongLong) As LongLong
     #If Mac Then
         CopyMemory MemLongLong, ByVal memAddress, 8
     #Else
-        DeRefMem m_remoteMemory, memAddress, vbLongLong
+        LinkMem m_remoteMemory, memAddress, vbLongLong + VT_BYREF
         MemLongLong = m_remoteMemory.memValue
         m_remoteMemory.memValue = Empty
     #End If
@@ -218,7 +218,7 @@ Public Property Let MemLongLong(ByVal memAddress As LongLong, ByVal newValue As 
     #Else
         'Cannot set Variant/LongLong ByRef so we use a Currency instead
         Const currDivider As Currency = 10000
-        DeRefMem m_remoteMemory, memAddress, vbCurrency
+        LinkMem m_remoteMemory, memAddress, vbCurrency + VT_BYREF
         LetByRefCurr(m_remoteMemory.memValue) = CCur(newValue / currDivider)
         m_remoteMemory.memValue = Empty
     #End If
@@ -245,22 +245,18 @@ End Property
 #End If
 
 '*******************************************************************************
-'Redirects the rm.memValue Variant to the new memory address so that the value
-'   can be read ByRef
+'Redirects the REMOTE_MEMORY.memValue Variant to the new memory address
 '*******************************************************************************
-Private Sub DeRefMem(ByRef rm As REMOTE_MEMORY, ByRef memAddress As LongPtr, ByRef vt As VbVarType)
-    With rm
-        If Not .isInitialized Then
-            'Link .remoteVt to the first 2 bytes of the .memValue Variant
-            .remoteVT = VarPtr(.memValue)
-            CopyMemory .remoteVT, vbInteger + VT_BYREF, 2
-            '
-            .isInitialized = True
-        End If
-        'Link .memValue to the desired address
-        .memValue = memAddress
-        LetByRefVT(.remoteVT) = vt + VT_BYREF 'Faster than: CopyMemory .memValue, vt + VT_BYREF, 2
-    End With
+Private Sub LinkMem(ByRef rm As REMOTE_MEMORY _
+                  , ByRef memAddress As LongPtr _
+                  , ByRef vt As VbVarType)
+    If Not rm.isInitialized Then 'Link .remoteVt to .memValue's first 2 bytes
+        rm.remoteVT = VarPtr(rm.memValue)
+        CopyMemory rm.remoteVT, vbInteger + VT_BYREF, 2
+        rm.isInitialized = True
+    End If
+    rm.memValue = memAddress
+    LetByRefVT(rm.remoteVT) = vt
 End Sub
 
 '*******************************************************************************
