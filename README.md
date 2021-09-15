@@ -37,7 +37,7 @@ Just import the following code modules in your VBA Project:
 ## Demo
 Import the following code modules in your VBA Project:
 * [DemoLibMemory.bas](https://github.com/cristianbuse/VBA-MemoryTools/blob/master/src/Demo/DemoLibMemory.bas) - run ```DemoMain```
-* [Demo folder](https://github.com/cristianbuse/VBA-MemoryTools/blob/master/src/Demo/DemoClass.cls)
+* [Demo folder](https://github.com/cristianbuse/VBA-MemoryTools/blob/master/src/Demo)
 
 ## Notes
 * CopyMemory API is also exposed just in case the main methods are not satisfying the requirement (e.g. copy 50 bytes at once)
