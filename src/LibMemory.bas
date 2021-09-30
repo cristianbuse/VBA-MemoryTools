@@ -76,12 +76,6 @@ Private Const MODULE_NAME As String = "LibMemory"
     #End If
 #End If
 
-#If VBA7 Then
-    Public Declare PtrSafe Function VarPtrArray Lib "VBE7.dll" Alias "VarPtr" (ByRef ptr() As Any) As LongPtr
-#Else
-    Public Declare Function VarPtrArray Lib "msvbvm60.dll" Alias "VarPtr" (ByRef ptr() As Any) As Long
-#End If
-
 'The size in bytes of a memory address
 #If Win64 Then
     Public Const PTR_SIZE As Long = 8
@@ -497,4 +491,22 @@ End Function
 '*******************************************************************************
 Public Function GetDefaultInterface(ByVal obj As IUnknown) As Object
     Set GetDefaultInterface = obj
+End Function
+
+'*******************************************************************************
+'Returns the memory address of a variable of array type
+'Returns error 5 for a non-array or an array wrapped in a Variant
+'*******************************************************************************
+#If Win64 Then
+Public Function VarPtrArray(ByRef arr As Variant) As LongLong
+#Else
+Public Function VarPtrArray(ByRef arr As Variant) As Long
+#End If
+    Dim vt As VbVarType: vt = MemInt(VarPtr(arr)) 'VarType(arr) ignores VT_BYREF
+    If vt And (vbArray Or VT_BYREF) Then
+        Const pArrayOffset As Long = 8
+        VarPtrArray = MemLongPtr(VarPtr(arr) + pArrayOffset)
+    Else
+        Err.Raise 5, "VarPtrArray", "Array required"
+    End If
 End Function
