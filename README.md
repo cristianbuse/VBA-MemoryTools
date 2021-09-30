@@ -19,6 +19,8 @@ A few other utilities:
  - GetDefaultInterface
  - MemObject (dereferences a pointer and returns an Object)
  - UnsignedAddition
+ - VarPtrArray (VarPtr for arrays)
+ - ArrPtr (as ObjPtr is for objects and StrPtr is for strings)
 
 See ```DemoMain``` method in the Demo module.
 
