@@ -251,11 +251,24 @@ Public Property Let MemLongLong(ByVal memAddress As LongLong, ByVal newValue As 
     #If Mac Then
         CopyMemory ByVal memAddress, newValue, 8
     #Else
-        'Cannot set Variant/LongLong ByRef so we use a Currency instead
-        Const currDivider As Currency = 10000
-        LinkMem m_remoteMemory, memAddress, vbCurrency + VT_BYREF
-        LetByRefCurr(m_remoteMemory.memValue) = CCur(newValue / currDivider)
-        m_remoteMemory.memValue = Empty
+        With m_remoteMemory
+            If Not .isInitialized Then InitRemoteMemory m_remoteMemory
+            '
+            'Cannot set Variant/LongLong ByRef so we use Currency instead
+            'Read LongLong as Currency
+            Dim tempCurrency As Currency
+            .memValue = newValue
+            LetByRefVT(.remoteVT) = vbCurrency
+            tempCurrency = .memValue
+            '
+            'Link to memory
+            .memValue = memAddress
+            LetByRefVT(.remoteVT) = vbCurrency + VT_BYREF
+            '
+            'Set new value
+            LetByRefCurr(.memValue) = tempCurrency
+            .memValue = Empty
+        End With
     #End If
 End Property
 #End If
