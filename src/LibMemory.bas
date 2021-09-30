@@ -510,3 +510,22 @@ Public Function VarPtrArray(ByRef arr As Variant) As Long
         Err.Raise 5, "VarPtrArray", "Array required"
     End If
 End Function
+
+'*******************************************************************************
+'Returns the pointer to the underlying SAFEARRAY structure of a VB array
+'Returns error 5 for a non-array
+'*******************************************************************************
+#If Win64 Then
+Public Function ArrPtr(ByRef arr As Variant) As LongLong
+#Else
+Public Function ArrPtr(ByRef arr As Variant) As Long
+#End If
+    Dim vt As VbVarType: vt = MemInt(VarPtr(arr)) 'VarType(arr) ignores VT_BYREF
+    If vt And vbArray Then
+        Const pArrayOffset As Long = 8
+        ArrPtr = MemLongPtr(VarPtr(arr) + pArrayOffset)
+        If vt And VT_BYREF Then ArrPtr = MemLongPtr(ArrPtr)
+    Else
+        Err.Raise 5, "ArrPtr", "Array required"
+    End If
+End Function
