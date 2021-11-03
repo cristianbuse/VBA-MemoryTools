@@ -502,8 +502,9 @@ Public Function VarPtrArray(ByRef arr As Variant) As LongLong
 #Else
 Public Function VarPtrArray(ByRef arr As Variant) As Long
 #End If
+    Const vtArrByRef As Long = vbArray + VT_BYREF
     Dim vt As VbVarType: vt = MemInt(VarPtr(arr)) 'VarType(arr) ignores VT_BYREF
-    If vt And (vbArray Or VT_BYREF) Then
+    If (vt And vtArrByRef) = vtArrByRef Then
         Const pArrayOffset As Long = 8
         VarPtrArray = MemLongPtr(VarPtr(arr) + pArrayOffset)
     Else
