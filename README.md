@@ -22,11 +22,9 @@ A few other utilities:
  - VarPtrArray (VarPtr for arrays)
  - ArrPtr (as ObjPtr is for objects and StrPtr is for strings)
 
-See ```DemoMain``` method in the Demo module.
-
 ## Class Instance Redirection
 
-Class instance redirection is now supported. This allows Private Class Initializers thus achieving true immutabilty.
+Class instance redirection is supported. This allows Private Class Initializers thus achieving true immutabilty.
 Simply call the ```RedirectInstance``` method within a ```Private Function``` of any VB class to gain access to other instances of the same class.
 Related [Code Review question](https://codereview.stackexchange.com/questions/253233/private-vba-class-initializer-called-from-factory-2).
 
@@ -40,6 +38,9 @@ Just import the following code modules in your VBA Project:
 Import the following code modules from the [demo folder](https://github.com/cristianbuse/VBA-MemoryTools/blob/master/src/Demo) in your VBA Project:
 * [DemoLibMemory.bas](https://github.com/cristianbuse/VBA-MemoryTools/blob/master/src/Demo/DemoLibMemory.bas) - run ```DemoMain```
 * [DemoClass](https://github.com/cristianbuse/VBA-MemoryTools/blob/master/src/Demo/DemoClass.cls)
+
+## Testing
+Just import [TestLibMemory.bas](https://github.com/cristianbuse/VBA-MemoryTools/blob/master/src/Test/TestLibMemory.bas) module and run method ```RunAllTests```. On failure, execution will stop on the first failed Assert.
 
 ## Notes
 * CopyMemory API is also exposed just in case the main methods are not satisfying the requirement (e.g. copy 50 bytes at once)
