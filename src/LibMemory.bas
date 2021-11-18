@@ -36,7 +36,7 @@ Option Private Module
 ''  - the host Application (Excel, Word, AutoCAD etc.)
 ''  - the operating system (Mac, Windows)
 ''  - application environment (x32, x64)
-'' A single API call to RtlMoveMemory/MemMove is needed to start the remote
+'' A single API call to RtlMoveMemory API is needed to start the remote
 ''  referencing mechanism. Inside a REMOTE_MEMORY type, a 'remoteVT' Variant is
 ''  used to manipulate the VarType of the 'memValue' that we want to read/write.
 ''  The remote manipulation of the VarType is done by setting the VT_BYREF flag
@@ -44,18 +44,13 @@ Option Private Module
 ''  once per initialization of the REMOTE_MEMORY variable (see MemIntAPI). Note
 ''  that besides the Static REMOTE_MEMORY used in MemIntAPI all the other memory
 ''  structs are initialized through InitRemoteMemory with no API calls. Once the
-''  flag is set the 'remoteVT' is used to change the VarType of the first
+''  flag is set, the 'remoteVT' is used to change the VarType of the first
 ''  Variant just by using a native VBA assignment operation (needs a utility
 ''  method for correct redirection). In order for the 'memValue' Variant to
 ''  point to aspecific memory address, 2 steps are needed:
 ''   1) the required address is assigned to the 'memValue' Variant
 ''   2) the VarType of the 'memValue' Variant is remotely changed via the
-''      'remoteVT' Variant (through LetByRefVT) while making sure the VT_BYREF
-''      flag is also set
-''
-'' Note that the 'LinkMem' method could have been a function returning a
-''  REMOTE_MEMORY type and thus greatly improving readability but this approach
-''  proved to be 2x slower in testing
+''      'remoteVT' Variant (must be done ByRef in any utility method)
 '*******************************************************************************
 
 'Used for raising errors
@@ -94,7 +89,7 @@ Private Const MODULE_NAME As String = "LibMemory"
 
 Public Type REMOTE_MEMORY
     memValue As Variant
-    remoteVT As Variant
+    remoteVT As Variant 'Will be linked to the first 2 bytes of 'memValue' - see 'InitRemoteMemory'
     isInitialized As Boolean 'In case state is lost
 End Type
 
@@ -102,8 +97,6 @@ End Type
 'https://docs.microsoft.com/en-us/windows/win32/api/oaidl/ns-oaidl-variant?redirectedfrom=MSDN
 'Flag used to simulate ByRef Variants
 Public Const VT_BYREF As Long = &H4000
-
-Private m_remoteMemory As REMOTE_MEMORY
 
 '*******************************************************************************
 'Returns an initialized (linked) REMOTE_MEMORY struct
@@ -130,12 +123,36 @@ Private Property Let MemIntAPI(ByVal memAddress As Long, ByVal newValue As Integ
         CopyMemory rm.remoteVT, vbInteger + VT_BYREF, 2
         rm.isInitialized = True
     End If
-    rm.memValue = memAddress
-    LetByRefVT(rm.remoteVT) = vbInteger + VT_BYREF
-    '
-    LetByRefInt(rm.memValue) = newValue
-    rm.memValue = Empty
+    RemoteAssign rm, memAddress, rm.remoteVT, vbInteger + VT_BYREF, rm.memValue, newValue
 End Property
+
+'*******************************************************************************
+'This method assures the required redirection for both the remote varType and
+'   the remote value at the same time thus removing any additional stack frames
+'It can be used to both read from and write to memory by swapping the order of
+'   the last 2 parameters
+'*******************************************************************************
+#If Win64 Then
+Private Sub RemoteAssign(ByRef rm As REMOTE_MEMORY _
+                       , ByRef memAddress As LongLong _
+                       , ByRef remoteVT As Variant _
+                       , ByVal newVT As VbVarType _
+                       , ByRef targetVariable As Variant _
+                       , ByRef newValue As Variant)
+#Else
+Private Sub RemoteAssign(ByRef rm As REMOTE_MEMORY _
+                       , ByRef memAddress As Long _
+                       , ByRef remoteVT As Variant _
+                       , ByVal newVT As VbVarType _
+                       , ByRef targetVariable As Variant _
+                       , ByRef newValue As Variant)
+#End If
+    rm.memValue = memAddress
+    If Not rm.isInitialized Then InitRemoteMemory rm
+    remoteVT = newVT
+    targetVariable = newValue
+    remoteVT = vbEmpty 'Stop linking to remote address, for safety
+End Sub
 
 '*******************************************************************************
 'Read/Write a Byte from/to memory
@@ -148,9 +165,8 @@ Public Property Get MemByte(ByVal memAddress As Long) As Byte
     #If Mac Then
         CopyMemory MemByte, ByVal memAddress, 1
     #Else
-        LinkMem m_remoteMemory, memAddress, vbByte + VT_BYREF
-        MemByte = m_remoteMemory.memValue
-        m_remoteMemory.memValue = Empty
+        Static rm As REMOTE_MEMORY
+        RemoteAssign rm, memAddress, rm.remoteVT, vbByte + VT_BYREF, MemByte, rm.memValue
     #End If
 End Property
 #If Win64 Then
@@ -161,9 +177,8 @@ Public Property Let MemByte(ByVal memAddress As Long, ByVal newValue As Byte)
     #If Mac Then
         CopyMemory ByVal memAddress, newValue, 1
     #Else
-        LinkMem m_remoteMemory, memAddress, vbByte + VT_BYREF
-        LetByRefByte(m_remoteMemory.memValue) = newValue
-        m_remoteMemory.memValue = Empty
+        Static rm As REMOTE_MEMORY
+        RemoteAssign rm, memAddress, rm.remoteVT, vbByte + VT_BYREF, rm.memValue, newValue
     #End If
 End Property
 
@@ -178,9 +193,8 @@ Public Property Get MemInt(ByVal memAddress As Long) As Integer
     #If Mac Then
         CopyMemory MemInt, ByVal memAddress, 2
     #Else
-        LinkMem m_remoteMemory, memAddress, vbInteger + VT_BYREF
-        MemInt = m_remoteMemory.memValue
-        m_remoteMemory.memValue = Empty
+        Static rm As REMOTE_MEMORY
+        RemoteAssign rm, memAddress, rm.remoteVT, vbInteger + VT_BYREF, MemInt, rm.memValue
     #End If
 End Property
 
@@ -192,9 +206,8 @@ Public Property Let MemInt(ByVal memAddress As Long, ByVal newValue As Integer)
     #If Mac Then
         CopyMemory ByVal memAddress, newValue, 2
     #Else
-        LinkMem m_remoteMemory, memAddress, vbInteger + VT_BYREF
-        LetByRefInt(m_remoteMemory.memValue) = newValue
-        m_remoteMemory.memValue = Empty
+        Static rm As REMOTE_MEMORY
+        RemoteAssign rm, memAddress, rm.remoteVT, vbInteger + VT_BYREF, rm.memValue, newValue
     #End If
 End Property
 
@@ -209,9 +222,8 @@ Public Property Get MemLong(ByVal memAddress As Long) As Long
     #If Mac Then
         CopyMemory MemLong, ByVal memAddress, 4
     #Else
-        LinkMem m_remoteMemory, memAddress, vbLong + VT_BYREF
-        MemLong = m_remoteMemory.memValue
-        m_remoteMemory.memValue = Empty
+        Static rm As REMOTE_MEMORY
+        RemoteAssign rm, memAddress, rm.remoteVT, vbLong + VT_BYREF, MemLong, rm.memValue
     #End If
 End Property
 #If Win64 Then
@@ -222,9 +234,8 @@ Public Property Let MemLong(ByVal memAddress As Long, ByVal newValue As Long)
     #If Mac Then
         CopyMemory ByVal memAddress, newValue, 4
     #Else
-        LinkMem m_remoteMemory, memAddress, vbLong + VT_BYREF
-        LetByRefLong(m_remoteMemory.memValue) = newValue
-        m_remoteMemory.memValue = Empty
+        Static rm As REMOTE_MEMORY
+        RemoteAssign rm, memAddress, rm.remoteVT, vbLong + VT_BYREF, rm.memValue, newValue
     #End If
 End Property
 
@@ -236,35 +247,40 @@ Public Property Get MemLongLong(ByVal memAddress As LongLong) As LongLong
     #If Mac Then
         CopyMemory MemLongLong, ByVal memAddress, 8
     #Else
-        LinkMem m_remoteMemory, memAddress, vbLongLong + VT_BYREF
-        MemLongLong = m_remoteMemory.memValue
-        m_remoteMemory.memValue = Empty
+        'Cannot set Variant/LongLong ByRef so we cannot use 'RemoteAssign'
+        Static rm As REMOTE_MEMORY: rm.memValue = memAddress
+        If Not rm.isInitialized Then InitRemoteMemory rm
+        MemLongLong = ByRefLongLong(rm.remoteVT, rm.memValue)
     #End If
 End Property
 Public Property Let MemLongLong(ByVal memAddress As LongLong, ByVal newValue As LongLong)
     #If Mac Then
         CopyMemory ByVal memAddress, newValue, 8
     #Else
-        With m_remoteMemory
-            If Not .isInitialized Then InitRemoteMemory m_remoteMemory
-            '
-            'Cannot set Variant/LongLong ByRef so we use Currency instead
-            'Read LongLong as Currency
-            Dim tempCurrency As Currency
-            .memValue = newValue
-            LetByRefVT(.remoteVT) = vbCurrency
-            tempCurrency = .memValue
-            '
-            'Link to memory
-            .memValue = memAddress
-            LetByRefVT(.remoteVT) = vbCurrency + VT_BYREF
-            '
-            'Set new value
-            LetByRefCurr(.memValue) = tempCurrency
-            .memValue = Empty
-        End With
+        'Cannot set Variant/LongLong ByRef so we use Currency instead
+        Static rmSrc As REMOTE_MEMORY: rmSrc.memValue = VarPtr(newValue)
+        Static rmDest As REMOTE_MEMORY: rmDest.memValue = memAddress
+        If Not rmSrc.isInitialized Then InitRemoteMemory rmSrc
+        If Not rmDest.isInitialized Then InitRemoteMemory rmDest
+        LetByRefLongLong rmDest.remoteVT, rmDest.memValue, rmSrc.remoteVT, rmSrc.memValue
     #End If
 End Property
+Private Property Get ByRefLongLong(ByRef vt As Variant _
+                                 , ByRef memValue As Variant) As LongLong
+    vt = vbLongLong + VT_BYREF
+    ByRefLongLong = memValue
+    vt = vbEmpty
+End Property
+Private Sub LetByRefLongLong(ByRef vtDest As Variant _
+                           , ByRef memValueDest As Variant _
+                           , ByRef vtsrc As Variant _
+                           , ByRef memValueSrc As Variant)
+    vtDest = vbCurrency + VT_BYREF
+    vtsrc = vbCurrency + VT_BYREF
+    memValueDest = memValueSrc
+    vtDest = vbEmpty
+    vtsrc = vbEmpty
+End Sub
 #End If
 
 '*******************************************************************************
@@ -290,61 +306,29 @@ End Property
 'Dereference an object by it's pointer
 '*******************************************************************************
 #If Win64 Then
-Public Function MemObject(ByVal memAddress As LongLong) As Object
+Public Function MemObj(ByVal memAddress As LongLong) As Object
 #Else
-Public Function MemObject(ByVal memAddress As Long) As Object
+Public Function MemObj(ByVal memAddress As Long) As Object
 #End If
     If memAddress = 0 Then Exit Function
     '
     #If Mac Then
         Dim obj As Object
         CopyMemory obj, memAddress, PTR_SIZE
-        Set MemObject = obj
+        Set MemObj = obj
         memAddress = 0 'We don't just use 0 (below) because we need 0& or 0^
         CopyMemory obj, memAddress, PTR_SIZE
     #Else
-        If Not m_remoteMemory.isInitialized Then InitRemoteMemory m_remoteMemory
-        m_remoteMemory.memValue = memAddress
-        Set MemObject = RemObject(m_remoteMemory.remoteVT, m_remoteMemory)
+        Static rm As REMOTE_MEMORY: rm.memValue = memAddress
+        If Not rm.isInitialized Then InitRemoteMemory rm
+        Set MemObj = RemObject(rm.remoteVT, rm.memValue)
     #End If
 End Function
-'Utility - avoids extra stack frames by not calling LetByRefVT twice
-Private Function RemObject(ByRef vt As Variant, ByRef rm As REMOTE_MEMORY) As Object
+Private Property Get RemObject(ByRef vt As Variant _
+                             , ByRef memValue As Variant) As Object
     vt = vbObject
-    Set RemObject = rm.memValue
-    vt = vbLongPtr
-End Function
-
-'*******************************************************************************
-'Redirects the REMOTE_MEMORY.memValue Variant to the new memory address
-'*******************************************************************************
-#If Win64 Then
-Private Sub LinkMem(ByRef rm As REMOTE_MEMORY, ByRef memAddr As LongLong, ByRef vt As VbVarType)
-#Else
-Private Sub LinkMem(ByRef rm As REMOTE_MEMORY, ByRef memAddr As Long, ByRef vt As VbVarType)
-#End If
-    If Not rm.isInitialized Then InitRemoteMemory rm
-    rm.memValue = memAddr
-    LetByRefVT(rm.remoteVT) = vt
-End Sub
-
-'*******************************************************************************
-'Utilities for updating remote values that have the VT_BYREF flag set
-'*******************************************************************************
-Private Property Let LetByRefVT(ByRef v As Variant, ByRef vt As VbVarType)
-    v = vt
-End Property
-Private Property Let LetByRefByte(ByRef v As Variant, ByRef newValue As Byte)
-    v = newValue
-End Property
-Private Property Let LetByRefInt(ByRef v As Variant, ByRef newValue As Integer)
-    v = newValue
-End Property
-Private Property Let LetByRefLong(ByRef v As Variant, ByRef newValue As Long)
-    v = newValue
-End Property
-Private Property Let LetByRefCurr(ByRef v As Variant, ByRef newValue As Currency)
-    v = newValue
+    Set RemObject = memValue
+    vt = vbEmpty
 End Property
 
 'Method purpose explanation at:
