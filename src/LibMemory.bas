@@ -212,6 +212,34 @@ Public Property Let MemInt(ByVal memAddress As Long, ByVal newValue As Integer)
 End Property
 
 '*******************************************************************************
+'Read/Write 2 Bytes (Boolean) from/to memory
+'*******************************************************************************
+#If Win64 Then
+Public Property Get MemBool(ByVal memAddress As LongLong) As Boolean
+#Else
+Public Property Get MemBool(ByVal memAddress As Long) As Boolean
+#End If
+    #If Mac Then
+        CopyMemory MemBool, ByVal memAddress, 2
+    #Else
+        Static rm As REMOTE_MEMORY
+        RemoteAssign rm, memAddress, rm.remoteVT, vbBoolean + VT_BYREF, MemBool, rm.memValue
+    #End If
+End Property
+#If Win64 Then
+Public Property Let MemBool(ByVal memAddress As LongLong, ByVal newValue As Boolean)
+#Else
+Public Property Let MemBool(ByVal memAddress As Long, ByVal newValue As Boolean)
+#End If
+    #If Mac Then
+        CopyMemory ByVal memAddress, newValue, 2
+    #Else
+        Static rm As REMOTE_MEMORY
+        RemoteAssign rm, memAddress, rm.remoteVT, vbBoolean + VT_BYREF, rm.memValue, newValue
+    #End If
+End Property
+
+'*******************************************************************************
 'Read/Write 4 Bytes (Long) from/to memory
 '*******************************************************************************
 #If Win64 Then
@@ -236,6 +264,34 @@ Public Property Let MemLong(ByVal memAddress As Long, ByVal newValue As Long)
     #Else
         Static rm As REMOTE_MEMORY
         RemoteAssign rm, memAddress, rm.remoteVT, vbLong + VT_BYREF, rm.memValue, newValue
+    #End If
+End Property
+
+'*******************************************************************************
+'Read/Write 4 Bytes (Single) from/to memory
+'*******************************************************************************
+#If Win64 Then
+Public Property Get MemSng(ByVal memAddress As LongLong) As Single
+#Else
+Public Property Get MemSng(ByVal memAddress As Long) As Single
+#End If
+    #If Mac Then
+        CopyMemory MemSng, ByVal memAddress, 4
+    #Else
+        Static rm As REMOTE_MEMORY
+        RemoteAssign rm, memAddress, rm.remoteVT, vbSingle + VT_BYREF, MemSng, rm.memValue
+    #End If
+End Property
+#If Win64 Then
+Public Property Let MemSng(ByVal memAddress As LongLong, ByVal newValue As Single)
+#Else
+Public Property Let MemSng(ByVal memAddress As Long, ByVal newValue As Single)
+#End If
+    #If Mac Then
+        CopyMemory ByVal memAddress, newValue, 4
+    #Else
+        Static rm As REMOTE_MEMORY
+        RemoteAssign rm, memAddress, rm.remoteVT, vbSingle + VT_BYREF, rm.memValue, newValue
     #End If
 End Property
 
@@ -301,6 +357,90 @@ Public Property Let MemLongPtr(ByVal memAddress As Long, ByVal newValue As Long)
     MemLong(memAddress) = newValue
 End Property
 #End If
+
+'*******************************************************************************
+'Read/Write 8 Bytes (Currency) from/to memory
+'*******************************************************************************
+#If Win64 Then
+Public Property Get MemCurr(ByVal memAddress As LongLong) As Currency
+#Else
+Public Property Get MemCurr(ByVal memAddress As Long) As Currency
+#End If
+    #If Mac Then
+        CopyMemory MemCurr, ByVal memAddress, 8
+    #Else
+        Static rm As REMOTE_MEMORY
+        RemoteAssign rm, memAddress, rm.remoteVT, vbCurrency + VT_BYREF, MemCurr, rm.memValue
+    #End If
+End Property
+#If Win64 Then
+Public Property Let MemCurr(ByVal memAddress As LongLong, ByVal newValue As Currency)
+#Else
+Public Property Let MemCurr(ByVal memAddress As Long, ByVal newValue As Currency)
+#End If
+    #If Mac Then
+        CopyMemory ByVal memAddress, newValue, 4
+    #Else
+        Static rm As REMOTE_MEMORY
+        RemoteAssign rm, memAddress, rm.remoteVT, vbCurrency + VT_BYREF, rm.memValue, newValue
+    #End If
+End Property
+
+'*******************************************************************************
+'Read/Write 8 Bytes (Date) from/to memory
+'*******************************************************************************
+#If Win64 Then
+Public Property Get MemDate(ByVal memAddress As LongLong) As Date
+#Else
+Public Property Get MemDate(ByVal memAddress As Long) As Date
+#End If
+    #If Mac Then
+        CopyMemory MemDate, ByVal memAddress, 8
+    #Else
+        Static rm As REMOTE_MEMORY
+        RemoteAssign rm, memAddress, rm.remoteVT, vbDate + VT_BYREF, MemDate, rm.memValue
+    #End If
+End Property
+#If Win64 Then
+Public Property Let MemDate(ByVal memAddress As LongLong, ByVal newValue As Date)
+#Else
+Public Property Let MemDate(ByVal memAddress As Long, ByVal newValue As Date)
+#End If
+    #If Mac Then
+        CopyMemory ByVal memAddress, newValue, 4
+    #Else
+        Static rm As REMOTE_MEMORY
+        RemoteAssign rm, memAddress, rm.remoteVT, vbDate + VT_BYREF, rm.memValue, newValue
+    #End If
+End Property
+
+'*******************************************************************************
+'Read/Write 8 Bytes (Double) from/to memory
+'*******************************************************************************
+#If Win64 Then
+Public Property Get MemDbl(ByVal memAddress As LongLong) As Double
+#Else
+Public Property Get MemDbl(ByVal memAddress As Long) As Double
+#End If
+    #If Mac Then
+        CopyMemory MemDbl, ByVal memAddress, 8
+    #Else
+        Static rm As REMOTE_MEMORY
+        RemoteAssign rm, memAddress, rm.remoteVT, vbDouble + VT_BYREF, MemDbl, rm.memValue
+    #End If
+End Property
+#If Win64 Then
+Public Property Let MemDbl(ByVal memAddress As LongLong, ByVal newValue As Double)
+#Else
+Public Property Let MemDbl(ByVal memAddress As Long, ByVal newValue As Double)
+#End If
+    #If Mac Then
+        CopyMemory ByVal memAddress, newValue, 4
+    #Else
+        Static rm As REMOTE_MEMORY
+        RemoteAssign rm, memAddress, rm.remoteVT, vbDouble + VT_BYREF, rm.memValue, newValue
+    #End If
+End Property
 
 '*******************************************************************************
 'Dereference an object by it's pointer

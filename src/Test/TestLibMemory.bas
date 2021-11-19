@@ -40,6 +40,17 @@ Public Sub RunAllTests()
     TestReadLongLong
     TestWriteLongLong
     '
+    TestReadBoolean
+    TestWriteBoolean
+    TestReadSingle
+    TestWriteSingle
+    TestReadCurrency
+    TestWriteCurrency
+    TestReadDate
+    TestWriteDate
+    TestReadDouble
+    TestWriteDouble
+    '
     Debug.Print "Finished running tests at " & Now()
 End Sub
 
@@ -278,5 +289,371 @@ Private Sub TestWriteLongLong()
     Debug.Assert Mid$(s, 1, 4) = "TEST"
     MemLongLong(VarPtr(s)) = ptr
     Debug.Assert Mid$(s, 1, 4) = "ABCD"
+#End If
+End Sub
+
+Private Sub TestReadBoolean()
+    Dim b As Boolean
+    Dim i As Integer
+    '
+    b = False
+    Debug.Assert MemBool(VarPtr(b)) = b
+    b = True
+    Debug.Assert MemBool(VarPtr(b)) = b
+    '
+    i = 0
+    Debug.Assert MemBool(VarPtr(i)) = False
+    i = -1
+    Debug.Assert MemBool(VarPtr(i)) = True
+    i = 1
+    Debug.Assert MemBool(VarPtr(i)) = 1
+    Debug.Assert MemBool(VarPtr(i)) <> True
+    Debug.Assert MemBool(VarPtr(i)) <> False
+    '
+    i = -255
+    Debug.Assert MemBool(VarPtr(i)) = -255
+    Debug.Assert MemBool(VarPtr(i)) <> True
+    Debug.Assert MemBool(VarPtr(i)) <> False
+End Sub
+
+Private Sub TestWriteBoolean()
+    Dim b As Boolean
+    Dim i As Integer
+    '
+    MemBool(VarPtr(b)) = False
+    Debug.Assert b = False
+    MemBool(VarPtr(b)) = True
+    Debug.Assert b = True
+    MemBool(VarPtr(b)) = 0 'The 'newValue' parameter converts to Bool before memory is written
+    Debug.Assert b = False
+    MemBool(VarPtr(b)) = 5 'The 'newValue' parameter converts to Bool before memory is written
+    Debug.Assert b = True
+    MemBool(VarPtr(b)) = -5 'The 'newValue' parameter converts to Bool before memory is written
+    Debug.Assert b = True
+    '
+    MemBool(VarPtr(i)) = False
+    Debug.Assert i = 0
+    MemBool(VarPtr(i)) = True
+    Debug.Assert i = -1
+    MemBool(VarPtr(i)) = 5 'The 'newValue' parameter converts to Bool before memory is written
+    Debug.Assert i = -1
+End Sub
+
+Private Sub TestReadSingle()
+    Dim s As Single
+    Dim v As Variant
+    Dim l As Long
+    Dim ss As String
+    '
+    Debug.Assert MemSng(VarPtr(&H7F800000)) = PosInf()
+    Debug.Assert MemSng(VarPtr(&HFF800000)) = NegInf()
+    ss = CStr(MemSng(VarPtr(&HFFC00000)))
+    Debug.Assert ss = "-1.#IND" Or ss = "-nan(ind)"
+    ss = CStr(MemSng(VarPtr(&H7FC00000)))
+    Debug.Assert ss = "1.#QNAN" Or ss = "nan"
+    '
+    For Each v In Array(-3.402823E+38, -1.401298E-45, 0, 1.401298E-45, 3.402823E+38)
+        s = v
+        Debug.Assert MemSng(VarPtr(s)) = s
+    Next v
+    '
+    For l = &H80000000 To &H7FFFFFFF - &H10000 Step &H10000
+        If (l And &H7F800000) <> &H7F800000 Then 'Skip INF/NAN
+            Debug.Assert MemSng(VarPtr(l)) = LongToSingle(l)
+        End If
+    Next l
+End Sub
+Public Function PosInf() As Double
+    On Error Resume Next
+    PosInf = 1 / 0
+    On Error GoTo 0
+End Function
+Public Function NegInf() As Double
+    NegInf = -PosInf
+End Function
+Public Function SNAN() As Double
+    On Error Resume Next
+    SNAN = 0 / 0
+    On Error GoTo 0
+End Function
+Public Function QNAN() As Double
+    QNAN = -SNAN
+End Function
+Private Function LongToSingle(ByVal l As Long) As Single
+    Dim signBit As Long
+    Dim exponentBits As Long
+    Dim fractionBits As Single
+    Dim i As Long
+    '
+    signBit = IIf(l And &H80000000, -1, 1)
+    For i = 23 To 30
+        exponentBits = exponentBits - CBool(l And 2 ^ i) * 2 ^ (i - 23)
+    Next i
+    For i = 1 To 23
+        fractionBits = fractionBits - CBool(l And 2 ^ (23 - i)) * 2 ^ -i
+    Next i
+    If exponentBits = 0 Then
+        If fractionBits <> 0 Then exponentBits = -126
+    ElseIf exponentBits = 255 Then
+        If fractionBits = 0 Then
+            LongToSingle = PosInf()
+        Else
+            LongToSingle = SNAN()
+        End If
+        If signBit = -1 Then LongToSingle = -LongToSingle
+        Exit Function
+    Else
+        Const bias As Long = 127
+        exponentBits = exponentBits - bias
+        fractionBits = fractionBits + 1
+    End If
+    LongToSingle = signBit * 2 ^ exponentBits * fractionBits
+End Function
+
+Private Sub TestWriteSingle()
+    Dim s As Single, s2 As Single
+    Dim v As Variant
+    Dim l As Long
+    '
+    MemSng(VarPtr(l)) = PosInf()
+    Debug.Assert l = &H7F800000
+    '
+    MemSng(VarPtr(l)) = NegInf()
+    Debug.Assert l = &HFF800000
+    '
+    MemSng(VarPtr(l)) = SNAN()
+    Debug.Assert l = &HFFC00000
+    '
+    MemSng(VarPtr(l)) = QNAN()
+    Debug.Assert l = &H7FC00000
+    '
+    For Each v In Array(-3.402823E+38, -1.401298E-45, 0, 1.401298E-45, 3.402823E+38)
+        MemSng(VarPtr(s)) = v
+        Debug.Assert s = v
+    Next v
+    '
+    For l = &H80000000 To &H7FFFFFFF - &H10000 Step &H10000
+        If (l And &H7F800000) <> &H7F800000 Then 'Skip INF/NAN
+            s = LongToSingle(l)
+            MemSng(VarPtr(s2)) = s
+            Debug.Assert s = s2
+        End If
+    Next l
+End Sub
+
+Private Sub TestReadCurrency()
+    Dim c As Currency
+    Dim l As Long
+    Dim s As String
+    '
+    For l = 1 To 63
+        c = -2 ^ l / 10000
+        Debug.Assert MemCurr(VarPtr(c)) = c
+        c = (2 ^ l - 1) / 10000
+        Debug.Assert MemCurr(VarPtr(c)) = c
+    Next l
+    '
+    s = Chr$(65) & Chr$(66) & Chr$(67) & Chr$(68)
+    Debug.Assert MemCurr(StrPtr(s)) = (65 + 66 * 256 ^ 2 + 67 * 256 ^ 4 + 68 * 256 ^ 6) / 10000
+End Sub
+
+Private Sub TestWriteCurrency()
+    Dim c As Currency, c2 As Currency
+    Dim l As Long
+    Dim s As String
+    '
+    For l = 1 To 63
+        c = -2 ^ l / 10000
+        MemCurr(VarPtr(c2)) = c
+        Debug.Assert c = c2
+        c = (2 ^ l - 1) / 10000
+        MemCurr(VarPtr(c2)) = c
+        Debug.Assert c = c2
+    Next l
+    '
+    s = Space(4)
+    MemCurr(StrPtr(s)) = (65 + 66 * 256 ^ 2 + 67 * 256 ^ 4 + 68 * 256 ^ 6) / 10000
+    Debug.Assert Mid$(s, 1, 4) = "ABCD" 'Chr$(65) & Chr$(66) & Chr$(67) & Chr$(68)
+End Sub
+
+Private Sub TestReadDate()
+    Const minDate As Date = #1/1/100#
+    Const maxDate As Date = #12/31/9999#
+    '
+    Dim dt As Date
+    Dim i As Long, j As Long
+    Dim d As Double
+    Dim s As String
+    '
+    For i = minDate To maxDate Step 200
+        d = CDbl(i) 'No time added
+        dt = d
+        Debug.Assert MemDate(VarPtr(d)) = dt
+        For j = 1 To 100
+            d = CDbl(i) + Rnd() 'Add some random time (hh:mm:ss)
+            dt = d
+            Debug.Assert MemDate(VarPtr(d)) = dt
+        Next j
+    Next i
+    '
+    d = CDbl(minDate) - 1000 'Invalid date
+    dt = MemDate(VarPtr(d))
+    Debug.Assert dt + 1000 = minDate
+    '
+    On Error Resume Next
+    s = CStr(dt)
+    Debug.Assert Err.Number = 5
+    On Error GoTo 0
+    '
+    d = CDbl(maxDate) + 5000 'Invalid date
+    dt = MemDate(VarPtr(d))
+    Debug.Assert dt - 5000 = maxDate
+    '
+    On Error Resume Next
+    s = CStr(dt)
+    Debug.Assert Err.Number = 5
+    On Error GoTo 0
+End Sub
+
+Private Sub TestWriteDate()
+    Const minDate As Date = #1/1/100#
+    Const maxDate As Date = #12/31/9999#
+    '
+    Dim dt As Date
+    Dim i As Long, j As Long
+    Dim d As Double
+    Dim s As String
+    '
+    For i = minDate To maxDate Step 200
+        d = CDbl(i) 'No time added
+        MemDate(VarPtr(dt)) = d
+        Debug.Assert dt = d
+        For j = 1 To 100
+            d = CDbl(i) + Rnd() 'Add some random time (hh:mm:ss)
+            MemDate(VarPtr(dt)) = d
+            Debug.Assert dt = d
+        Next j
+    Next i
+    '
+    d = CDbl(minDate) - 5000 'Invalid date
+    MemDate(VarPtr(dt)) = MemDate(VarPtr(d))
+    Debug.Assert dt + 5000 = minDate
+    '
+    On Error Resume Next
+    s = CStr(dt)
+    Debug.Assert Err.Number = 5 'Invalid date
+    On Error GoTo 0
+    '
+    d = CDbl(maxDate) + 50000
+    MemDate(VarPtr(dt)) = MemDate(VarPtr(d))
+    Debug.Assert dt - 50000 = maxDate
+    '
+    On Error Resume Next
+    s = CStr(dt)
+    Debug.Assert Err.Number = 5
+    On Error GoTo 0
+End Sub
+
+Private Sub TestReadDouble()
+    Dim d As Double
+    Dim v As Variant
+    Dim s As String
+    '
+    For Each v In Array(-1.79769313486231E+308, -4.94065645841247E-324, 0 _
+                       , 4.94065645841247E-324, 1.79769313486231E+308)
+        d = v
+        Debug.Assert MemDbl(VarPtr(d)) = d
+    Next v
+    '
+#If Win64 Then
+    Debug.Assert MemDbl(VarPtr(&H7FF0000000000000^)) = PosInf()
+    Debug.Assert MemDbl(VarPtr(&HFFF0000000000000^)) = NegInf()
+    s = CStr(MemDbl(VarPtr(&HFFF8000000000000^)))
+    Debug.Assert s = "-1.#IND" Or s = "-nan(ind)"
+    s = CStr(MemDbl(VarPtr(&H7FF8000000000000^)))
+    Debug.Assert s = "1.#QNAN" Or s = "nan"
+    '
+    Dim ll As LongLong
+    Const loopStep As LongLong = &H1000000000000^
+    '
+    ll = &H8000000000000000^
+    Do
+        If (ll And &H7FF0000000000000^) <> &H7FF0000000000000^ Then 'Skip INF/NAN
+            Debug.Assert MemDbl(VarPtr(ll)) = LongLongToDouble(ll)
+        End If
+        ll = ll + loopStep
+    Loop Until ll > &H7FFFFFFFFFFFFFFF^ - loopStep
+#End If
+End Sub
+
+#If Win64 Then
+Private Function LongLongToDouble(ByVal ll As LongLong) As Double
+    Dim signBit As Long
+    Dim exponentBits As Long
+    Dim fractionBits As Double
+    Dim i As Long
+    '
+    signBit = IIf(ll And &H8000000000000000^, -1, 1)
+    For i = 52 To 62
+        exponentBits = exponentBits - CBool(ll And 2 ^ i) * 2 ^ (i - 52)
+    Next i
+    For i = 1 To 52
+        fractionBits = fractionBits - CBool(ll And 2 ^ (52 - i)) * 2 ^ -i
+    Next i
+    If exponentBits = 0 Then
+        If fractionBits <> 0 Then exponentBits = -1022
+    ElseIf exponentBits = 2047 Then
+        If fractionBits = 0 Then
+            LongLongToDouble = PosInf()
+        Else
+            LongLongToDouble = SNAN()
+        End If
+        If signBit = -1 Then LongLongToDouble = -LongLongToDouble
+        Exit Function
+    Else
+        Const bias As Long = 1023
+        exponentBits = exponentBits - bias
+        fractionBits = fractionBits + 1
+    End If
+    LongLongToDouble = signBit * 2 ^ exponentBits * fractionBits
+End Function
+#End If
+
+Private Sub TestWriteDouble()
+    Dim d As Double, d2 As Double
+    Dim v As Variant
+    '
+    For Each v In Array(-1.79769313486231E+308, -4.94065645841247E-324, 0 _
+                       , 4.94065645841247E-324, 1.79769313486231E+308)
+        MemDbl(VarPtr(d)) = v
+        Debug.Assert d = v
+    Next v
+    '
+#If Win64 Then
+    Dim ll As LongLong
+    '
+    MemDbl(VarPtr(ll)) = PosInf()
+    Debug.Assert ll = &H7FF0000000000000^
+    '
+    MemDbl(VarPtr(ll)) = NegInf()
+    Debug.Assert ll = &HFFF0000000000000^
+    '
+    MemDbl(VarPtr(ll)) = SNAN()
+    Debug.Assert ll = &HFFF8000000000000^
+    '
+    MemDbl(VarPtr(ll)) = QNAN()
+    Debug.Assert ll = &H7FF8000000000000^
+    '
+    Const loopStep As LongLong = &H1000000000000^
+    '
+    ll = &H8000000000000000^
+    Do
+        If (ll And &H7FF0000000000000^) <> &H7FF0000000000000^ Then 'Skip INF/NAN
+            d = LongLongToDouble(ll)
+            MemDbl(VarPtr(d2)) = d
+            Debug.Assert d = d2
+        End If
+        ll = ll + loopStep
+    Loop Until ll > &H7FFFFFFFFFFFFFFF^ - loopStep
 #End If
 End Sub
