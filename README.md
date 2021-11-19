@@ -8,6 +8,7 @@ Related [Code Review question](https://codereview.stackexchange.com/questions/25
 ## Implementation
 Same technique used [here](https://codereview.stackexchange.com/a/249125/227582) was implemented. A remote Variant allows the changing of the VarType on a second Variant which in turn reads memory remotely as well (has VT_BYREF flag set). A single CopyMemory API call is done when initializing the mentioned remote VarType. Subsequent usage relies on native VBA code only.
 
+## Use
 10 parametric properties (Get/Let) are exposed:
  01. MemByte
  02. MetInt 
@@ -46,6 +47,7 @@ Import the following code modules from the [demo folder](https://github.com/cris
 
 ## Testing
 Just import [TestLibMemory.bas](https://github.com/cristianbuse/VBA-MemoryTools/blob/master/src/Test/TestLibMemory.bas) module and run method ```RunAllTests```. On failure, execution will stop on the first failed Assert.
+
 All 10 parametric properties are thoroughly tested. Please [raise an issue](https://github.com/cristianbuse/VBA-MemoryTools/issues/new) if any test is failing.
 
 ## Notes
