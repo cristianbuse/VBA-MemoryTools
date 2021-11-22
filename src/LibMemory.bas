@@ -362,24 +362,24 @@ End Property
 'Read/Write 8 Bytes (Currency) from/to memory
 '*******************************************************************************
 #If Win64 Then
-Public Property Get MemCurr(ByVal memAddress As LongLong) As Currency
+Public Property Get MemCur(ByVal memAddress As LongLong) As Currency
 #Else
-Public Property Get MemCurr(ByVal memAddress As Long) As Currency
+Public Property Get MemCur(ByVal memAddress As Long) As Currency
 #End If
     #If Mac Then
-        CopyMemory MemCurr, ByVal memAddress, 8
+        CopyMemory MemCur, ByVal memAddress, 8
     #Else
         Static rm As REMOTE_MEMORY
-        RemoteAssign rm, memAddress, rm.remoteVT, vbCurrency + VT_BYREF, MemCurr, rm.memValue
+        RemoteAssign rm, memAddress, rm.remoteVT, vbCurrency + VT_BYREF, MemCur, rm.memValue
     #End If
 End Property
 #If Win64 Then
-Public Property Let MemCurr(ByVal memAddress As LongLong, ByVal newValue As Currency)
+Public Property Let MemCur(ByVal memAddress As LongLong, ByVal newValue As Currency)
 #Else
-Public Property Let MemCurr(ByVal memAddress As Long, ByVal newValue As Currency)
+Public Property Let MemCur(ByVal memAddress As Long, ByVal newValue As Currency)
 #End If
     #If Mac Then
-        CopyMemory ByVal memAddress, newValue, 4
+        CopyMemory ByVal memAddress, newValue, 8
     #Else
         Static rm As REMOTE_MEMORY
         RemoteAssign rm, memAddress, rm.remoteVT, vbCurrency + VT_BYREF, rm.memValue, newValue
@@ -407,7 +407,7 @@ Public Property Let MemDate(ByVal memAddress As LongLong, ByVal newValue As Date
 Public Property Let MemDate(ByVal memAddress As Long, ByVal newValue As Date)
 #End If
     #If Mac Then
-        CopyMemory ByVal memAddress, newValue, 4
+        CopyMemory ByVal memAddress, newValue, 8
     #Else
         Static rm As REMOTE_MEMORY
         RemoteAssign rm, memAddress, rm.remoteVT, vbDate + VT_BYREF, rm.memValue, newValue
@@ -435,7 +435,7 @@ Public Property Let MemDbl(ByVal memAddress As LongLong, ByVal newValue As Doubl
 Public Property Let MemDbl(ByVal memAddress As Long, ByVal newValue As Double)
 #End If
     #If Mac Then
-        CopyMemory ByVal memAddress, newValue, 4
+        CopyMemory ByVal memAddress, newValue, 8
     #Else
         Static rm As REMOTE_MEMORY
         RemoteAssign rm, memAddress, rm.remoteVT, vbDouble + VT_BYREF, rm.memValue, newValue

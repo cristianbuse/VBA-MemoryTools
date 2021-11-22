@@ -17,7 +17,7 @@ Same technique used [here](https://codereview.stackexchange.com/a/249125/227582)
  05. MemLongLong (x64 only)
  06. MemBool
  07. MetSng 
- 08. MemCurr
+ 08. MemCur
  09. MemDate
  10. MemDbl
 

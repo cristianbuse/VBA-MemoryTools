@@ -249,38 +249,37 @@ End Sub
 
 Private Sub TestReadLongLong()
 #If Win64 Then
-    Dim l As Long
     Dim ll As LongLong
     Dim s As String
+    Const loopStep As LongLong = &H1000000000000^
     '
-    For l = 1 To 63
-        ll = -2 ^ l
+    ll = &H8000000000000000^
+    Do
         Debug.Assert MemLongLong(VarPtr(ll)) = ll
-        ll = 2 ^ l - 1
-        Debug.Assert MemLongLong(VarPtr(ll)) = ll
-    Next l
+        ll = ll + loopStep
+    Loop Until ll > &H7FFFFFFFFFFFFFFF^ - loopStep
     '
     s = Chr$(65) & Chr$(66) & Chr$(67) & Chr$(68)
-    Debug.Assert MemLongLong(StrPtr(s)) = 65 + 66 * 256 ^ 2 + 67 * 256 ^ 4 + 68 * 256 ^ 6
+    Debug.Assert MemLongLong(StrPtr(s)) = &H44004300420041^
     Debug.Assert MemLongLong(VarPtr(s)) = StrPtr(s)
 #End If
 End Sub
 
 Private Sub TestWriteLongLong()
 #If Win64 Then
-    Dim l As Long
-    Dim ll As LongLong, ptr As LongPtr
+    Dim ll As LongLong, ll2 As LongLong, ptr As LongPtr
     Dim s As String, s2 As String
+    Const loopStep As LongLong = &H1000000000000^
     '
-    For l = 1 To 63
-        MemLongLong(VarPtr(ll)) = -2 ^ l
-        Debug.Assert ll = -2 ^ l
-        MemLongLong(VarPtr(ll)) = 2 ^ l - 1
-        Debug.Assert ll = 2 ^ l - 1
-    Next l
+    ll = &H8000000000000000^
+    Do
+        MemLongLong(VarPtr(ll2)) = ll
+        Debug.Assert ll = ll2
+        ll = ll + loopStep
+    Loop Until ll > &H7FFFFFFFFFFFFFFF^ - loopStep
     '
     s = Space(4)
-    MemLongLong(StrPtr(s)) = 65 + 66 * 256 ^ 2 + 67 * 256 ^ 4 + 68 * 256 ^ 6
+    MemLongLong(StrPtr(s)) = &H44004300420041^
     Debug.Assert Mid$(s, 1, 4) = "ABCD"
     '
     s2 = "TEST"
@@ -343,14 +342,11 @@ Private Sub TestReadSingle()
     Dim s As Single
     Dim v As Variant
     Dim l As Long
-    Dim ss As String
     '
     Debug.Assert MemSng(VarPtr(&H7F800000)) = PosInf()
     Debug.Assert MemSng(VarPtr(&HFF800000)) = NegInf()
-    ss = CStr(MemSng(VarPtr(&HFFC00000)))
-    Debug.Assert ss = "-1.#IND" Or ss = "-nan(ind)"
-    ss = CStr(MemSng(VarPtr(&H7FC00000)))
-    Debug.Assert ss = "1.#QNAN" Or ss = "nan"
+    Debug.Assert CStr(MemSng(VarPtr(&HFFC00000))) = CStr(SNAN())
+    Debug.Assert CStr(MemSng(VarPtr(&H7FC00000))) = CStr(QNAN())
     '
     For Each v In Array(-3.402823E+38, -1.401298E-45, 0, 1.401298E-45, 3.402823E+38)
         s = v
@@ -446,15 +442,19 @@ Private Sub TestReadCurrency()
     Dim l As Long
     Dim s As String
     '
-    For l = 1 To 63
+    For l = 1 To 62
         c = -2 ^ l / 10000
-        Debug.Assert MemCurr(VarPtr(c)) = c
+        Debug.Assert MemCur(VarPtr(c)) = c
         c = (2 ^ l - 1) / 10000
-        Debug.Assert MemCurr(VarPtr(c)) = c
+        Debug.Assert MemCur(VarPtr(c)) = c
     Next l
+    c = CCur("-922,337,203,685,477.5808")
+    Debug.Assert MemCur(VarPtr(c)) = c
+    c = CCur("922,337,203,685,477.5807")
+    Debug.Assert MemCur(VarPtr(c)) = c
     '
     s = Chr$(65) & Chr$(66) & Chr$(67) & Chr$(68)
-    Debug.Assert MemCurr(StrPtr(s)) = (65 + 66 * 256 ^ 2 + 67 * 256 ^ 4 + 68 * 256 ^ 6) / 10000
+    Debug.Assert MemCur(StrPtr(s)) = CCur("1914058618345.8881")
 End Sub
 
 Private Sub TestWriteCurrency()
@@ -462,18 +462,24 @@ Private Sub TestWriteCurrency()
     Dim l As Long
     Dim s As String
     '
-    For l = 1 To 63
+    For l = 1 To 62
         c = -2 ^ l / 10000
-        MemCurr(VarPtr(c2)) = c
+        MemCur(VarPtr(c2)) = c
         Debug.Assert c = c2
         c = (2 ^ l - 1) / 10000
-        MemCurr(VarPtr(c2)) = c
+        MemCur(VarPtr(c2)) = c
         Debug.Assert c = c2
     Next l
+    c = CCur("-922,337,203,685,477.5808")
+    MemCur(VarPtr(c2)) = c
+    Debug.Assert c = c2
+    c = CCur("922,337,203,685,477.5807")
+    MemCur(VarPtr(c2)) = c
+    Debug.Assert c = c2
     '
     s = Space(4)
-    MemCurr(StrPtr(s)) = (65 + 66 * 256 ^ 2 + 67 * 256 ^ 4 + 68 * 256 ^ 6) / 10000
-    Debug.Assert Mid$(s, 1, 4) = "ABCD" 'Chr$(65) & Chr$(66) & Chr$(67) & Chr$(68)
+    MemCur(StrPtr(s)) = CCur("1914058618345.8881")
+    Debug.Assert Mid$(s, 1, 4) = "ABCD"
 End Sub
 
 Private Sub TestReadDate()
@@ -557,7 +563,6 @@ End Sub
 Private Sub TestReadDouble()
     Dim d As Double
     Dim v As Variant
-    Dim s As String
     '
     For Each v In Array(-1.79769313486231E+308, -4.94065645841247E-324, 0 _
                        , 4.94065645841247E-324, 1.79769313486231E+308)
@@ -568,10 +573,8 @@ Private Sub TestReadDouble()
 #If Win64 Then
     Debug.Assert MemDbl(VarPtr(&H7FF0000000000000^)) = PosInf()
     Debug.Assert MemDbl(VarPtr(&HFFF0000000000000^)) = NegInf()
-    s = CStr(MemDbl(VarPtr(&HFFF8000000000000^)))
-    Debug.Assert s = "-1.#IND" Or s = "-nan(ind)"
-    s = CStr(MemDbl(VarPtr(&H7FF8000000000000^)))
-    Debug.Assert s = "1.#QNAN" Or s = "nan"
+    Debug.Assert CStr(MemDbl(VarPtr(&HFFF8000000000000^))) = CStr(SNAN())
+    Debug.Assert CStr(MemDbl(VarPtr(&H7FF8000000000000^))) = CStr(QNAN())
     '
     Dim ll As LongLong
     Const loopStep As LongLong = &H1000000000000^
