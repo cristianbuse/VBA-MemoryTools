@@ -305,8 +305,7 @@ Public Property Get MemLongLong(ByVal memAddress As LongLong) As LongLong
     #Else
         'Cannot set Variant/LongLong ByRef so we cannot use 'RemoteAssign'
         Static rm As REMOTE_MEMORY: rm.memValue = memAddress
-        If Not rm.isInitialized Then InitRemoteMemory rm
-        MemLongLong = ByRefLongLong(rm.remoteVT, rm.memValue)
+        MemLongLong = ByRefLongLong(rm, rm.remoteVT, rm.memValue)
     #End If
 End Property
 Public Property Let MemLongLong(ByVal memAddress As LongLong, ByVal newValue As LongLong)
@@ -316,21 +315,26 @@ Public Property Let MemLongLong(ByVal memAddress As LongLong, ByVal newValue As 
         'Cannot set Variant/LongLong ByRef so we use Currency instead
         Static rmSrc As REMOTE_MEMORY: rmSrc.memValue = VarPtr(newValue)
         Static rmDest As REMOTE_MEMORY: rmDest.memValue = memAddress
-        If Not rmSrc.isInitialized Then InitRemoteMemory rmSrc
-        If Not rmDest.isInitialized Then InitRemoteMemory rmDest
-        LetByRefLongLong rmDest.remoteVT, rmDest.memValue, rmSrc.remoteVT, rmSrc.memValue
+        LetByRefLongLong rmDest, rmDest.remoteVT, rmDest.memValue _
+                       , rmSrc, rmSrc.remoteVT, rmSrc.memValue
     #End If
 End Property
-Private Property Get ByRefLongLong(ByRef vt As Variant _
+Private Property Get ByRefLongLong(ByRef rm As REMOTE_MEMORY _
+                                 , ByRef vt As Variant _
                                  , ByRef memValue As Variant) As LongLong
+    If Not rm.isInitialized Then InitRemoteMemory rm
     vt = vbLongLong + VT_BYREF
     ByRefLongLong = memValue
     vt = vbEmpty
 End Property
-Private Sub LetByRefLongLong(ByRef vtDest As Variant _
+Private Sub LetByRefLongLong(ByRef rmDest As REMOTE_MEMORY _
+                           , ByRef vtDest As Variant _
                            , ByRef memValueDest As Variant _
+                           , ByRef rmSrc As REMOTE_MEMORY _
                            , ByRef vtsrc As Variant _
                            , ByRef memValueSrc As Variant)
+    If Not rmSrc.isInitialized Then InitRemoteMemory rmSrc
+    If Not rmDest.isInitialized Then InitRemoteMemory rmDest
     vtDest = vbCurrency + VT_BYREF
     vtsrc = vbCurrency + VT_BYREF
     memValueDest = memValueSrc
@@ -341,22 +345,40 @@ End Sub
 
 '*******************************************************************************
 'Read/Write 4 Bytes (Long on x32) or 8 Bytes (LongLong on x64) from/to memory
+'Note that wrapping MemLong and MemLongLong is about 25% slower because of the
+'   extra stack frame! Performance was chosen over code repetition!
 '*******************************************************************************
 #If Win64 Then
 Public Property Get MemLongPtr(ByVal memAddress As LongLong) As LongLong
-    MemLongPtr = MemLongLong(memAddress)
-End Property
-Public Property Let MemLongPtr(ByVal memAddress As LongLong, ByVal newValue As LongLong)
-    MemLongLong(memAddress) = newValue
-End Property
 #Else
 Public Property Get MemLongPtr(ByVal memAddress As Long) As Long
-    MemLongPtr = MemLong(memAddress)
-End Property
-Public Property Let MemLongPtr(ByVal memAddress As Long, ByVal newValue As Long)
-    MemLong(memAddress) = newValue
-End Property
 #End If
+    #If Mac Then
+        CopyMemory MemLongPtr, ByVal memAddress, PTR_SIZE
+    #ElseIf Win64 Then
+        Static rm As REMOTE_MEMORY: rm.memValue = memAddress
+        MemLongPtr = ByRefLongLong(rm, rm.remoteVT, rm.memValue)
+    #Else
+        Static rm As REMOTE_MEMORY
+        RemoteAssign rm, memAddress, rm.remoteVT, vbLong + VT_BYREF, MemLongPtr, rm.memValue
+    #End If
+End Property
+#If Win64 Then
+Public Property Let MemLongPtr(ByVal memAddress As LongLong, ByVal newValue As LongLong)
+#Else
+Public Property Let MemLongPtr(ByVal memAddress As Long, ByVal newValue As Long)
+#End If
+    #If Mac Then
+        CopyMemory ByVal memAddress, newValue, PTR_SIZE
+    #ElseIf Win64 Then
+        Static rmSrc As REMOTE_MEMORY: rmSrc.memValue = VarPtr(newValue)
+        Static rmDest As REMOTE_MEMORY: rmDest.memValue = memAddress
+        LetByRefLongLong rmDest, rmDest.remoteVT, rmDest.memValue, rmSrc, rmSrc.remoteVT, rmSrc.memValue
+    #Else
+        Static rm As REMOTE_MEMORY
+        RemoteAssign rm, memAddress, rm.remoteVT, vbLong + VT_BYREF, rm.memValue, newValue
+    #End If
+End Property
 
 '*******************************************************************************
 'Read/Write 8 Bytes (Currency) from/to memory

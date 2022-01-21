@@ -267,7 +267,7 @@ End Sub
 
 Private Sub TestWriteLongLong()
 #If Win64 Then
-    Dim ll As LongLong, ll2 As LongLong, ptr As LongPtr
+    Dim ll As LongLong, ll2 As LongLong, ptr As LongLong
     Dim s As String, s2 As String
     Const loopStep As LongLong = &H1000000000000^
     '
