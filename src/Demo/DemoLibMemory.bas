@@ -187,28 +187,10 @@ Private Sub DemoMemCopySpeed()
         res1 = Round(Timer - t, 3)
         '
         t = Timer
-        'Make sure API calls don't take forever
-        If iterations > 5000 Then
-            For i = 1 To iterations / 1000
-                CopyMemory ByVal dest, ByVal src, size
-            Next i
-            res2 = Round((Timer - t) * 1000, 3)
-        ElseIf iterations > 500 Then
-            For i = 1 To iterations / 100
-                CopyMemory ByVal dest, ByVal src, size
-            Next i
-            res2 = Round((Timer - t) * 100, 3)
-        ElseIf iterations > 50 Then
-            For i = 1 To iterations / 10
-                CopyMemory ByVal dest, ByVal src, size
-            Next i
-            res2 = Round((Timer - t) * 10, 3)
-        Else
-            For i = 1 To iterations
-                CopyMemory ByVal dest, ByVal src, size
-            Next i
-            res2 = Round(Timer - t, 3)
-        End If
+        For i = 1 To iterations
+            CopyMemory ByVal dest, ByVal src, size
+        Next i
+        res2 = Round(Timer - t, 3)
         '
         Debug.Print size, iterations, res1, res2
         '
