@@ -51,6 +51,8 @@ Public Sub RunAllTests()
     TestReadDouble
     TestWriteDouble
     '
+    TestMemCopy
+    '
     Debug.Print "Finished running tests at " & Now()
 End Sub
 
@@ -659,4 +661,59 @@ Private Sub TestWriteDouble()
         ll = ll + loopStep
     Loop Until ll > &H7FFFFFFFFFFFFFFF^ - loopStep
 #End If
+End Sub
+
+Private Sub TestMemCopy()
+    Dim arr1() As Byte
+    Dim arr2() As Byte
+    Dim i As Long, j As Long
+    '
+    ReDim arr1(0 To 2 ^ 24)
+    arr2 = arr1
+    '
+    For i = LBound(arr2) To UBound(arr2)
+        arr2(i) = i Mod 256
+    Next i
+    '
+    For i = LBound(arr2) To 2 ^ 13
+        MemCopy VarPtr(arr1(0)), VarPtr(arr2(0)), i + 1
+        For j = 0 To i
+            Debug.Assert arr1(j) = arr2(j)
+            arr1(j) = 0  'Clear for next run
+        Next j
+    Next i
+    '
+    For i = 2 ^ 13 To 2 ^ 18 Step 2 ^ 6 - 1
+        MemCopy VarPtr(arr1(0)), VarPtr(arr2(0)), i + 1
+        For j = 0 To i Step 2 ^ 6 - 1
+            Debug.Assert arr1(j) = arr2(j)
+            arr1(j) = 0  'Clear for next run
+        Next j
+    Next i
+    '
+    For i = 2 ^ 18 To 2 ^ 24 Step 2 ^ 16 - 1
+        MemCopy VarPtr(arr1(0)), VarPtr(arr2(0)), i + 1
+        For j = 0 To i Step 2 ^ 10 - 1
+            Debug.Assert arr1(j) = arr2(j)
+            arr1(j) = 0  'Clear for next run
+        Next j
+    Next i
+    '
+#If Win64 Then
+    ReDim arr1(0 To 2 ^ 31 - 2)
+#Else
+    ReDim arr1(0 To 2 ^ 29 - 1)
+#End If
+    arr2 = arr1
+    '
+    For i = LBound(arr2) To UBound(arr2) - 2 ^ 16 Step 2 ^ 16 - 1
+        arr2(i) = i Mod 256
+    Next i
+    arr2(UBound(arr2) - 1) = 55
+    '
+    MemCopy VarPtr(arr1(0)), VarPtr(arr2(0)), UBound(arr2)
+    For i = LBound(arr2) To UBound(arr2) - 2 ^ 16 Step 2 ^ 16 - 1
+        Debug.Assert arr1(i) = arr2(i)
+    Next i
+    Debug.Assert arr1(UBound(arr1) - 1) = 55
 End Sub

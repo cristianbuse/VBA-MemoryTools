@@ -13,6 +13,8 @@ Sub DemoMain()
     DemoMemObjectSpeed
     Debug.Print String(21, "-") & " Redirection " & String(21, "-")
     DemoInstanceRedirection
+    Debug.Print String(23, "-") & " MemCopy " & String(23, "-")
+    DemoMemCopySpeed
 End Sub
 
 Private Sub DemoInstanceRedirection()
@@ -150,4 +152,77 @@ Private Sub DemoMemObjectSpeed()
     Debug.Print "Dereferenced an Object " & Format$(LOOPS, "#,##0") _
         & " times in " & Round(Timer - t, 3) & " seconds"
     DoEvents
+End Sub
+
+Private Sub DemoMemCopySpeed()
+    Dim t As Double
+    Dim a1() As Byte
+    Dim a2() As Byte
+    Dim size As Long
+    Dim iterations As Long
+    Dim i As Long
+    Dim src As LongPtr
+    Dim dest As LongPtr
+    Dim res1 As Double
+    Dim res2 As Double
+    '
+    size = 2
+    iterations = 2 ^ 21
+    Debug.Print "Size", "Iterations", "MemCopy", "CopyMemory"
+    Do
+        ReDim a1(0 To size - 1)
+        ReDim a2(0 To size - 1)
+        '
+        For i = 3 To UBound(a2) - 2 ^ 16 - 1 Step 2 ^ 16
+            a2(i) = 128 'This forces BSTR copy rather than SAFEARRAY
+        Next i
+        '
+        src = VarPtr(a2(0))
+        dest = VarPtr(a1(0))
+        '
+        t = Timer
+        For i = 1 To iterations
+            MemCopy dest, src, size
+        Next i
+        res1 = Round(Timer - t, 3)
+        '
+        t = Timer
+        'Make sure API calls don't take forever
+        If iterations > 5000 Then
+            For i = 1 To iterations / 1000
+                CopyMemory ByVal dest, ByVal src, size
+            Next i
+            res2 = Round((Timer - t) * 1000, 3)
+        ElseIf iterations > 500 Then
+            For i = 1 To iterations / 100
+                CopyMemory ByVal dest, ByVal src, size
+            Next i
+            res2 = Round((Timer - t) * 100, 3)
+        ElseIf iterations > 50 Then
+            For i = 1 To iterations / 10
+                CopyMemory ByVal dest, ByVal src, size
+            Next i
+            res2 = Round((Timer - t) * 10, 3)
+        Else
+            For i = 1 To iterations
+                CopyMemory ByVal dest, ByVal src, size
+            Next i
+            res2 = Round(Timer - t, 3)
+        End If
+        '
+        Debug.Print size, iterations, res1, res2
+        '
+        Const maxLong As Long = 2147483647
+        If CDbl(size) * 2 > maxLong Then
+            If CDbl(size) * 2 - 1 > maxLong Then
+                iterations = 2
+            Else
+                size = CDbl(size) * 2 - 1
+            End If
+        Else
+            size = size * 2
+        End If
+        iterations = iterations / 1.6
+        DoEvents
+    Loop Until iterations = 1
 End Sub

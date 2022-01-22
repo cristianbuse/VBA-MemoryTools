@@ -98,6 +98,24 @@ End Type
 'Flag used to simulate ByRef Variants
 Public Const VT_BYREF As Long = &H4000
 
+Private Type SAFEARRAYBOUND
+    cElements As Long
+    lLbound As Long
+End Type
+Private Type SAFEARRAY_1D
+    cDims As Integer
+    fFeatures As Integer
+    cbElements As Long
+    cLocks As Long
+    #If Win64 Then
+        dummyPadding As Long
+        pvData As LongLong
+    #Else
+        pvData As Long
+    #End If
+    rgsabound0 As SAFEARRAYBOUND
+End Type
+
 '*******************************************************************************
 'Returns an initialized (linked) REMOTE_MEMORY struct
 'Links .remoteVt to the first 2 bytes of .memValue
@@ -331,15 +349,15 @@ Private Sub LetByRefLongLong(ByRef rmDest As REMOTE_MEMORY _
                            , ByRef vtDest As Variant _
                            , ByRef memValueDest As Variant _
                            , ByRef rmSrc As REMOTE_MEMORY _
-                           , ByRef vtsrc As Variant _
+                           , ByRef vtSrc As Variant _
                            , ByRef memValueSrc As Variant)
     If Not rmSrc.isInitialized Then InitRemoteMemory rmSrc
     If Not rmDest.isInitialized Then InitRemoteMemory rmDest
     vtDest = vbCurrency + VT_BYREF
-    vtsrc = vbCurrency + VT_BYREF
+    vtSrc = vbCurrency + VT_BYREF
     memValueDest = memValueSrc
     vtDest = vbEmpty
-    vtsrc = vbEmpty
+    vtSrc = vbEmpty
 End Sub
 #End If
 
@@ -644,17 +662,17 @@ End Function
 'Returns error 5 for a non-array or an array wrapped in a Variant
 '*******************************************************************************
 #If Win64 Then
-Public Function VarPtrArray(ByRef arr As Variant) As LongLong
+Public Function VarPtrArr(ByRef arr As Variant) As LongLong
 #Else
-Public Function VarPtrArray(ByRef arr As Variant) As Long
+Public Function VarPtrArr(ByRef arr As Variant) As Long
 #End If
     Const vtArrByRef As Long = vbArray + VT_BYREF
     Dim vt As VbVarType: vt = MemInt(VarPtr(arr)) 'VarType(arr) ignores VT_BYREF
     If (vt And vtArrByRef) = vtArrByRef Then
         Const pArrayOffset As Long = 8
-        VarPtrArray = MemLongPtr(VarPtr(arr) + pArrayOffset)
+        VarPtrArr = MemLongPtr(VarPtr(arr) + pArrayOffset)
     Else
-        Err.Raise 5, "VarPtrArray", "Array required"
+        Err.Raise 5, "VarPtrArr", "Array required"
     End If
 End Function
 
@@ -676,3 +694,189 @@ Public Function ArrPtr(ByRef arr As Variant) As Long
         Err.Raise 5, "ArrPtr", "Array required"
     End If
 End Function
+
+'*******************************************************************************
+'Alternative for CopyMemory - not affected by API speed issues on Windows
+'--------------------------
+'Mac - wrapper around CopyMemory/memmove
+'Win - bytesCount 1 to 2147483647 - no API calls. Uses a combination of
+'      REMOTE_MEMORY/SAFEARRAY_1D structs as well as native Strings and Arrays
+'      to manipulate memory. Works within size limitation of Strings in VBA
+'      For some smaller sizes (<=5) optimizes via MemLong, MemInt, MemByte etc.
+'    - bytesCount < 0 or > 2147483647 - wrapper around CopyMemory/RtlMoveMemory
+'*******************************************************************************
+#If Win64 Then
+Public Sub MemCopy(ByVal destinationPtr As LongLong _
+                 , ByVal sourcePtr As LongLong _
+                 , ByVal bytesCount As LongLong)
+#Else
+Public Sub MemCopy(ByVal destinationPtr As Long _
+                 , ByVal sourcePtr As Long _
+                 , ByVal bytesCount As Long)
+#End If
+#If Mac Then
+    CopyMemory ByVal destinationPtr, ByVal sourcePtr, bytesCount
+#Else
+    #If Win64 Then
+        Const maxLong As Long = &H7FFFFFFF
+        If bytesCount < 0 Or bytesCount > maxLong Then
+    #Else
+        If bytesCount < 0 Then
+    #End If
+        CopyMemory ByVal destinationPtr, ByVal sourcePtr, bytesCount
+        Exit Sub
+    End If
+    '
+    If bytesCount <= 4 Then 'Cannot copy via BSTR as destination
+        Select Case bytesCount
+            Case 1: MemByte(destinationPtr) = MemByte(sourcePtr)
+            Case 2: MemInt(destinationPtr) = MemInt(sourcePtr)
+            Case 3: MemInt(destinationPtr) = MemInt(sourcePtr)
+                    MemByte(destinationPtr + 2) = MemByte(sourcePtr + 2)
+            Case 4: MemLong(destinationPtr) = MemLong(sourcePtr)
+        End Select
+        Exit Sub
+    ElseIf bytesCount = 8 Then 'Optional optimization - small gain
+        MemCur(destinationPtr) = MemCur(sourcePtr)
+        Exit Sub
+    End If
+    '
+    'Structs used to read/write memory
+    Static sArrByte As SAFEARRAY_1D
+    Static rmArrSrc As REMOTE_MEMORY
+    Static rmSrc As REMOTE_MEMORY
+    Static rmDest As REMOTE_MEMORY
+    Static rmBSTR As REMOTE_MEMORY
+    '
+    If Not rmArrSrc.isInitialized Then
+        Const FADF_HAVEVARTYPE As Long = &H80
+        Const BYTE_SIZE As Long = &H1
+        '
+        With sArrByte
+            .cDims = 1
+            .fFeatures = FADF_HAVEVARTYPE
+            .cbElements = BYTE_SIZE
+        End With
+        rmArrSrc.memValue = VarPtr(sArrByte)
+        '
+        InitRemoteMemory rmArrSrc
+        InitRemoteMemory rmSrc
+        InitRemoteMemory rmDest
+        InitRemoteMemory rmBSTR
+    End If
+    '
+    rmSrc.memValue = sourcePtr
+    rmDest.memValue = destinationPtr
+    CopyBytes CLng(bytesCount), rmSrc, rmSrc.remoteVT, rmDest, rmDest.remoteVT _
+        , rmDest.memValue, sArrByte, rmArrSrc.memValue, rmArrSrc.remoteVT _
+        , rmBSTR, rmBSTR.remoteVT, rmBSTR.memValue
+#End If
+End Sub
+'*******************************************************************************
+'Utility for 'MemCopy' - avoids extra stack frames
+'The 'bytesCount' expected to be larger than 4 because the first 4 bytes are
+'   needed for the destination BSTR's length.
+'The source can either be a String or an array of bytes depending on the first 4
+'   bytes in the source. Choice between the 2 is based on speed considerations
+'Note that no byte is changed in source regardless if BSTR or SAFEARRAY is used
+'*******************************************************************************
+Private Sub CopyBytes(ByVal bytesCount As Long _
+                    , ByRef rmSrc As REMOTE_MEMORY, ByRef vtSrc As Variant _
+                    , ByRef rmDest As REMOTE_MEMORY, ByRef vtDest As Variant _
+                    , ByRef destValue As Variant, ByRef sArr As SAFEARRAY_1D _
+                    , ByRef arrBytes As Variant, ByRef vtArr As Variant _
+                    , ByRef rmBSTR As REMOTE_MEMORY, ByRef vtBSTR As Variant _
+                    , ByRef bstrPtrValue As Variant)
+    Const bstrPrefixSize As Long = 4
+    Dim bytes As Long: bytes = bytesCount - bstrPrefixSize
+    Dim bstrLength As Long
+    Dim s As String 'Must not be Variant so that LSet is faster
+    Dim tempSize As Long
+    Dim useBSTR As Boolean
+    '
+    Do
+        vtSrc = vbLong + VT_BYREF
+        bstrLength = rmSrc.memValue 'Copy first 4 bytes froum source
+        vtSrc = vbLongPtr
+        '
+        Const maxMidBs As Long = 2 ^ 5 'Use SAFEARRAY and MidB below this value
+        useBSTR = (bstrLength >= bytes Or bstrLength < 0) And bytes > maxMidBs
+        If useBSTR Then 'Prepare source BSTR
+            rmBSTR.memValue = VarPtr(s)
+            #If Win64 Then
+                Const curBSTRPrefixSize As Currency = 0.0004
+                vtSrc = vbCurrency
+                vtBSTR = vbCurrency + VT_BYREF
+                bstrPtrValue = rmSrc.memValue + curBSTRPrefixSize
+                vtSrc = vbLongPtr
+            #Else
+                vtBSTR = vbLong + VT_BYREF
+                bstrPtrValue = rmSrc.memValue + bstrPrefixSize
+            #End If
+            Const maxStartMidB As Long = 2 ^ 30 'MidB second param limit (bug)
+            If bytes > maxStartMidB And bytes Mod 2 = 1 Then
+                tempSize = maxStartMidB
+                bytes = bytes - maxStartMidB
+            Else
+                tempSize = bytes
+                bytes = 0
+            End If
+        Else 'Prepare source SAFEARRAY
+            'For large amounts it is faster to copy memory in smaller chunks
+            Const chunkSize As Long = 2 ^ 16 'Similar performance with 2 ^ 17
+            '
+            If bytes > chunkSize + bstrPrefixSize + 1 Then
+                tempSize = chunkSize
+                bytes = bytes - chunkSize - bstrPrefixSize
+            Else
+                tempSize = bytes
+                bytes = 0
+            End If
+            sArr.pvData = rmSrc.memValue + bstrPrefixSize
+            sArr.rgsabound0.cElements = tempSize
+            vtArr = vbArray + vbByte
+        End If
+        '
+        'Prepare destination BSTR
+        vtDest = vbLong + VT_BYREF
+        destValue = tempSize
+        vtDest = vbLongPtr
+        rmDest.memValue = rmDest.memValue + bstrPrefixSize
+        vtDest = vbString
+        '
+        'Copy and clean
+        If useBSTR Then
+            LSet destValue = s 'LSet cannot copy an odd number of bytes
+            If tempSize Mod 2 = 1 Then
+                MidB(destValue, tempSize, 1) = MidB$(s, tempSize, 1)
+            End If
+            bstrPtrValue = 0
+            vtBSTR = vbEmpty
+        Else
+            Const maxMidBa As Long = maxMidBs * 2 ^ 3
+            If tempSize > maxMidBa Then
+                LSet destValue = arrBytes
+                If tempSize Mod 2 = 1 Then
+                    Static lastByte(0 To 0) As Byte
+                    lastByte(0) = arrBytes(UBound(arrBytes))
+                    MidB(destValue, tempSize, 1) = lastByte
+                End If
+            Else
+                MidB(destValue, 1) = arrBytes
+            End If
+            vtArr = vbEmpty
+        End If
+        '
+        vtDest = vbLongPtr
+        rmDest.memValue = rmDest.memValue - bstrPrefixSize
+        vtDest = vbLong + VT_BYREF
+        destValue = bstrLength 'Copy the correct 'BSTR length' bytes
+        vtDest = vbLongPtr
+        '
+        If bytes > 0 Then 'Advance address for next chunk
+            Dim bytesOffset As Long: bytesOffset = chunkSize + bstrPrefixSize
+            rmDest.memValue = UnsignedAdd(rmDest.memValue, bytesOffset)
+            rmSrc.memValue = UnsignedAdd(rmSrc.memValue, bytesOffset)
+        End If
+    Loop Until bytes = 0
+End Sub

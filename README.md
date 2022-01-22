@@ -1,32 +1,34 @@
 # VBA-MemoryTools
 Native memory manipulation in VBA
 
-Using CopyMemory API (RtlMoveMemory on Windows) is quite slow when used many times. Moreover, on some systems this Memory API is even slower due to certain software (e.g. Windows Defender - see [article](https://stackoverflow.com/questions/57885185/windows-defender-extremly-slowing-down-macro-only-on-windows-10)). The API can become so slow that is pretty much unusable (e.g. on my x32 Windows machine it is 600 times slower than it used to be). Using the **LibMemory** module presented here overcomes the speed issues for reading and writing 1, 2, 4 and 8 bytes from and into memory.
+Using ```CopyMemory``` API (RtlMoveMemory on Windows) is quite slow when used many times. Moreover, on some systems this Memory API is even slower due to certain software (e.g. Windows Defender - see [article](https://stackoverflow.com/questions/57885185/windows-defender-extremly-slowing-down-macro-only-on-windows-10)). The API can become so slow that is pretty much unusable (e.g. on my x32 Windows machine it is 600 times slower than it used to be). Using the **LibMemory** module presented here overcomes the speed issues for reading and writing from and into memory.
 
 Related [Code Review question](https://codereview.stackexchange.com/questions/252659/fast-native-memory-manipulation-in-vba)
 
 ## Implementation
-Same technique used [here](https://codereview.stackexchange.com/a/249125/227582) was implemented. A remote Variant allows the changing of the VarType on a second Variant which in turn reads memory remotely as well (has VT_BYREF flag set). A single CopyMemory API call is done when initializing the mentioned remote VarType. Subsequent usage relies on native VBA code only.
+Same technique used [here](https://codereview.stackexchange.com/a/249125/227582) was implemented. A remote Variant allows the changing of the VarType on a second Variant which in turn reads memory remotely as well (has VT_BYREF flag set). A single CopyMemory API call is done when initializing the base REMOTE_MEMORY structure (see ```MemIntAPI```). Subsequent usage relies on native VBA code only.
 
 ## Use
+```MemCopy``` - a faster alternative to ```CopyMemory``` without API calls on Windows up to sizes of 2147483647 (max Long value and limitation of VB String). Uses a combination of fake BSTR and SAFEARRAY structures to copy memory.
+
 10 parametric properties (Get/Let) are exposed:
- 01. MemByte
- 02. MetInt 
- 03. MemLong
- 04. MemLongPtr
- 05. MemLongLong (x64 only)
- 06. MemBool
- 07. MetSng 
- 08. MemCur
- 09. MemDate
- 10. MemDbl
+ 01. ```MemByte```
+ 02. ```MetInt```
+ 03. ```MemLong```
+ 04. ```MemLongPtr```
+ 05. ```MemLongLong``` (x64 only)
+ 06. ```MemBool```
+ 07. ```MemSng``` 
+ 08. ```MemCur```
+ 09. ```MemDate```
+ 10. ```MemDbl```
 
 A few other utilities:
- - GetDefaultInterface
- - MemObject (dereferences a pointer and returns an Object)
- - UnsignedAddition
- - VarPtrArray (VarPtr for arrays)
- - ArrPtr (as ObjPtr is for objects and StrPtr is for strings) - returns the pointer to the underlying SAFEARRAY structure
+ - ```GetDefaultInterface```
+ - ```MemObject``` (dereferences a pointer and returns an Object)
+ - ```UnsignedAddition```
+ - ```VarPtrArr``` (```VarPtr``` for arrays)
+ - ```ArrPtr``` (as ```ObjPtr``` is for objects and ```StrPtr``` is for strings) - returns the pointer to the underlying SAFEARRAY structure
 
 ## Class Instance Redirection
 
@@ -48,10 +50,7 @@ Import the following code modules from the [demo folder](https://github.com/cris
 ## Testing
 Just import [TestLibMemory.bas](https://github.com/cristianbuse/VBA-MemoryTools/blob/master/src/Test/TestLibMemory.bas) module and run method ```RunAllTests```. On failure, execution will stop on the first failed Assert.
 
-All 10 parametric properties are thoroughly tested. Please [raise an issue](https://github.com/cristianbuse/VBA-MemoryTools/issues/new) if any test is failing.
-
-## Notes
-* CopyMemory API is also exposed just in case the main methods are not satisfying the requirement (e.g. copy 50 bytes at once)
+Please [raise an issue](https://github.com/cristianbuse/VBA-MemoryTools/issues/new) if any test is failing.
 
 ## License
 MIT License
