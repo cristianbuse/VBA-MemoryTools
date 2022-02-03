@@ -927,9 +927,12 @@ Private Sub FixByValElements(ByRef arr() As Variant _
     For i = 0 To UBound(arr)
         vt = rmArr.memValue(vtIndex)
         If (vt And VT_BYREF) = 0 Then
-            If vt = vbObject Then Set v = arr(i) Else v = arr(i)
-            rmArr.memValue(vtIndex) = vbEmpty  'Avoid deallocation (BSTR, Obj)
-            If vt = vbObject Then Set arr(i) = v Else arr(i) = v
+            If (vt And vbArray) = vbArray Or vt = vbObject Or vt = vbString _
+            Or vt = vbDataObject Or vt = vbUserDefinedType Then
+                If vt = vbObject Then Set v = arr(i) Else v = arr(i)
+                rmArr.memValue(vtIndex) = vbEmpty 'Avoid deallocation
+                If vt = vbObject Then Set arr(i) = v Else arr(i) = v
+            End If
         End If
         vtIndex = vtIndex + VT_SPACING
     Next i

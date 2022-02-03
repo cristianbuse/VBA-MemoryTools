@@ -732,7 +732,7 @@ Private Sub TestCloneParamArray()
     Dim o2 As Collection: Set o2 = Nothing
     Dim arr() As Variant
     '
-    TestParamArray i1, (i2), 1, d, 2.2, "ABC", s1, (s2), v1, v2, New Collection, v3, o1, o2, Null, Nothing, arr
+    TestParamArray i1, (i2), 1, d, 2.2, "ABC", s1, (s2), v1, v2, New Collection, v3, o1, o2, Null, Nothing, arr, Array(1, 2, 3)
     '
     Debug.Assert i1 = 2
     Debug.Assert i2 = 2
@@ -769,6 +769,7 @@ Private Sub TestParamArray(ParamArray args() As Variant)
     LetSet(arr(14)) = Empty
     LetSet(arr(15)) = Array(1, 2, 3)
     LetSet(arr(16)) = Array(1, 2, "ABC")
+    LetSet(arr(17)) = Null
 End Sub
 Private Property Let LetSet(ByRef result As Variant, ByRef v As Variant)
     If IsObject(v) Then Set result = v Else result = v
