@@ -29,6 +29,7 @@ A few other utilities:
  - ```UnsignedAddition```
  - ```VarPtrArr``` (```VarPtr``` for arrays)
  - ```ArrPtr``` (as ```ObjPtr``` is for objects and ```StrPtr``` is for strings) - returns the pointer to the underlying SAFEARRAY structure
+ - ```CloneParamArray``` - copies a param array to another array of Variants while preserving ByRef elements
 
 ## Class Instance Redirection
 

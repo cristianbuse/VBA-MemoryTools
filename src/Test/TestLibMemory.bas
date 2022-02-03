@@ -52,6 +52,7 @@ Public Sub RunAllTests()
     TestWriteDouble
     '
     TestMemCopy
+    TestCloneParamArray
     '
     Debug.Print "Finished running tests at " & Now()
 End Sub
@@ -717,3 +718,58 @@ Private Sub TestMemCopy()
     Next i
     Debug.Assert arr1(UBound(arr1) - 1) = 55
 End Sub
+
+Private Sub TestCloneParamArray()
+    Dim i1 As Long: i1 = 1
+    Dim i2 As Long: i2 = 2
+    Dim d As Double: d = 2.25
+    Dim s1 As String: s1 = "ABC"
+    Dim s2 As String: s2 = "DEF"
+    Dim v1 As Variant: v1 = "ABC"
+    Dim v2 As Variant: Set v2 = New Collection
+    Dim v3 As Variant: v3 = Null
+    Dim o1 As Object: Set o1 = New Collection
+    Dim o2 As Collection: Set o2 = Nothing
+    Dim arr() As Variant
+    '
+    TestParamArray i1, (i2), 1, d, 2.2, "ABC", s1, (s2), v1, v2, New Collection, v3, o1, o2, Null, Nothing, arr
+    '
+    Debug.Assert i1 = 2
+    Debug.Assert i2 = 2
+    Debug.Assert d = 3.14
+    Debug.Assert s1 = "GHI"
+    Debug.Assert s2 = "DEF"
+    Debug.Assert v1 = 777
+    Debug.Assert v2 Is Nothing
+    Debug.Assert v3 Is Nothing
+    Debug.Assert o1 Is Application
+    Debug.Assert o2.Count = 1
+    Debug.Assert UBound(arr) - LBound(arr) + 1 = 3
+    Debug.Assert arr(UBound(arr)) = "ABC"
+End Sub
+Private Sub TestParamArray(ParamArray args() As Variant)
+    Dim arr() As Variant
+    CloneParamArray firstElem:=args(0) _
+                  , elemCount:=UBound(args) + 1 _
+                  , outArray:=arr
+    LetSet(arr(0)) = 2
+    LetSet(arr(1)) = 3
+    LetSet(arr(2)) = 4
+    LetSet(arr(3)) = 3.14
+    LetSet(arr(4)) = "2.2"
+    LetSet(arr(5)) = 2.2
+    LetSet(arr(6)) = "GHI"
+    LetSet(arr(7)) = "ABC"
+    LetSet(arr(8)) = 777
+    LetSet(arr(9)) = Nothing
+    LetSet(arr(10)) = Null
+    LetSet(arr(11)) = Nothing
+    LetSet(arr(12)) = Application
+    LetSet(arr(13)) = New Collection: arr(13).Add Empty
+    LetSet(arr(14)) = Empty
+    LetSet(arr(15)) = Array(1, 2, 3)
+    LetSet(arr(16)) = Array(1, 2, "ABC")
+End Sub
+Private Property Let LetSet(ByRef result As Variant, ByRef v As Variant)
+    If IsObject(v) Then Set result = v Else result = v
+End Property

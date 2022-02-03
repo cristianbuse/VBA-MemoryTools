@@ -71,12 +71,17 @@ Private Const MODULE_NAME As String = "LibMemory"
     #End If
 #End If
 
-'The size in bytes of a memory address
 #If Win64 Then
     Public Const PTR_SIZE As Long = 8
+    Public Const VARIANT_SIZE As Long = 24
 #Else
     Public Const PTR_SIZE As Long = 4
+    Public Const VARIANT_SIZE As Long = 16
 #End If
+
+Private Const BYTE_SIZE As Long = 1
+Private Const INT_SIZE As Long = 2
+Private Const VT_SPACING As Long = VARIANT_SIZE / INT_SIZE 'VarType spacing in an array of Variants
 
 #If Win64 Then
     #If Mac Then
@@ -115,6 +120,7 @@ Private Type SAFEARRAY_1D
     #End If
     rgsabound0 As SAFEARRAYBOUND
 End Type
+Private Const FADF_HAVEVARTYPE As Long = &H80
 
 '*******************************************************************************
 'Returns an initialized (linked) REMOTE_MEMORY struct
@@ -749,9 +755,6 @@ Public Sub MemCopy(ByVal destinationPtr As Long _
     Static rmBSTR As REMOTE_MEMORY
     '
     If Not rmArrSrc.isInitialized Then
-        Const FADF_HAVEVARTYPE As Long = &H80
-        Const BYTE_SIZE As Long = &H1
-        '
         With sArrByte
             .cDims = 1
             .fFeatures = FADF_HAVEVARTYPE
@@ -879,4 +882,56 @@ Private Sub CopyBytes(ByVal bytesCount As Long _
             rmSrc.memValue = UnsignedAdd(rmSrc.memValue, bytesOffset)
         End If
     Loop Until bytes = 0
+End Sub
+
+'*******************************************************************************
+'Copy a param array to another array of Variants while preserving ByRef elements
+'*******************************************************************************
+Public Sub CloneParamArray(ByRef firstElem As Variant _
+                         , ByVal elemCount As Long _
+                         , ByRef outArray() As Variant)
+    ReDim outArray(0 To elemCount - 1)
+    MemCopy VarPtr(outArray(0)), VarPtr(firstElem), VARIANT_SIZE * elemCount
+    '
+    Static sArr As SAFEARRAY_1D 'Fake array of VarTypes (Integers)
+    Static rmArr As REMOTE_MEMORY
+    '
+    If Not rmArr.isInitialized Then
+        With sArr
+            .cDims = 1
+            .fFeatures = FADF_HAVEVARTYPE
+            .cbElements = INT_SIZE
+        End With
+        InitRemoteMemory rmArr
+        rmArr.memValue = VarPtr(sArr)
+    End If
+    sArr.rgsabound0.cElements = elemCount * VT_SPACING
+    sArr.pvData = VarPtr(outArray(0))
+    '
+    FixByValElements outArray, rmArr, rmArr.remoteVT
+End Sub
+
+'*******************************************************************************
+'Utility for 'CloneParamArray' - avoid deallocation on elements passed ByVal
+'e.g. if original ParamArray has a pointer to a BSTR then safely clear the copy
+'*******************************************************************************
+Private Sub FixByValElements(ByRef arr() As Variant _
+                           , ByRef rmArr As REMOTE_MEMORY _
+                           , ByRef vtArr As Variant)
+    Dim i As Long
+    Dim v As Variant
+    Dim vtIndex As Long: vtIndex = 0
+    Dim vt As VbVarType
+    '
+    vtArr = vbArray + vbInteger
+    For i = 0 To UBound(arr)
+        vt = rmArr.memValue(vtIndex)
+        If (vt And VT_BYREF) = 0 Then
+            If vt = vbObject Then Set v = arr(i) Else v = arr(i)
+            rmArr.memValue(vtIndex) = vbEmpty  'Avoid deallocation (BSTR, Obj)
+            If vt = vbObject Then Set arr(i) = v Else arr(i) = v
+        End If
+        vtIndex = vtIndex + VT_SPACING
+    Next i
+    vtArr = vbEmpty
 End Sub
