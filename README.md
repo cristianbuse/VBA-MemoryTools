@@ -30,6 +30,7 @@ A few other utilities:
  - ```VarPtrArr``` (```VarPtr``` for arrays)
  - ```ArrPtr``` (as ```ObjPtr``` is for objects and ```StrPtr``` is for strings) - returns the pointer to the underlying SAFEARRAY structure
  - ```CloneParamArray``` - copies a param array to another array of Variants while preserving ByRef elements
+ - ```SetArrayByRef``` - sets an array to a Variant by reference to avoid copying the array
 
 ## Class Instance Redirection
 

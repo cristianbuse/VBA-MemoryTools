@@ -938,3 +938,15 @@ Private Sub FixByValElements(ByRef arr() As Variant _
     Next i
     vtArr = vbEmpty
 End Sub
+
+'*******************************************************************************
+'Assigns one array to a Variant by reference to avoid copying the array
+'*******************************************************************************
+Public Sub SetArrayByRef(ByRef outVar As Variant, ByRef inArr As Variant)
+    If IsArray(inArr) Then
+        outVar = VarPtrArr(inArr)
+        MemInt(VarPtr(outVar)) = VarType(inArr) Or VT_BYREF
+    Else
+        Err.Raise 5, "SetArrayByRef", "Array required"
+    End If
+End Sub
