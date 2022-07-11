@@ -839,3 +839,27 @@ Public Function GetArrayByRef(ByRef arr As Variant) As Variant
         Err.Raise 5, "GetArrayByRef", "Array required"
     End If
 End Function
+
+'*******************************************************************************
+'Reads the memory of a String to an Array of Integers
+'*******************************************************************************
+Public Function StringToIntegers(ByRef s As String _
+                               , Optional ByVal lowBound As Long = 0) As Integer()
+    Static rm As REMOTE_MEMORY
+    Static sArr As SAFEARRAY_1D
+    '
+    If Not rm.isInitialized Then
+        InitRemoteMemory rm
+        With sArr
+            .cDims = 1
+            .fFeatures = FADF_HAVEVARTYPE
+            .cbElements = INT_SIZE
+        End With
+    End If
+    '
+    sArr.pvData = StrPtr(s)
+    sArr.rgsabound0.lLbound = lowBound
+    sArr.rgsabound0.cElements = Len(s)
+    '
+    RemoteAssign rm, VarPtr(sArr), rm.remoteVT, vbArray + vbInteger, StringToIntegers, rm.memValue
+End Function
