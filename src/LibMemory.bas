@@ -109,11 +109,11 @@ End Type
 'Flag used to simulate ByRef Variants
 Public Const VT_BYREF As Long = &H4000
 
-Private Type SAFEARRAYBOUND
+Public Type SAFEARRAYBOUND
     cElements As Long
     lLbound As Long
 End Type
-Private Type SAFEARRAY_1D
+Public Type SAFEARRAY_1D
     cDims As Integer
     fFeatures As Integer
     cbElements As Long
