@@ -31,7 +31,8 @@ A few other utilities:
  - ```ArrPtr``` (as ```ObjPtr``` is for objects and ```StrPtr``` is for strings) - returns the pointer to the underlying SAFEARRAY structure
  - ```CloneParamArray``` - copies a param array to another array of Variants while preserving ByRef elements
  - ```GetArrayByRef``` - returns the input array wrapped in a ByRef Variant without copying the array
-  - ```StringToIntegers``` - copies the memory of a String to an Array of Integers
+ - ```StringToIntegers``` - copies the memory of a String to an Array of Integers
+ - ```EmptyArray``` - returns an empty array of the requested size and data type
 
 ## Class Instance Redirection
 

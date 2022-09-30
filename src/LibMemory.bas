@@ -863,3 +863,52 @@ Public Function StringToIntegers(ByRef s As String _
     '
     RemoteAssign rm, VarPtr(sArr), rm.remoteVT, vbArray + vbInteger, StringToIntegers, rm.memValue
 End Function
+
+'*******************************************************************************
+'Returns an empty array of the requested size and type
+'*******************************************************************************
+Public Function EmptyArray(ByVal numberOfDimensions As Long _
+                         , ByVal vType As VbVarType) As Variant
+    Const methodName As String = "EmptyArray"
+    Const MAX_DIMENSION As Long = 60
+    '
+    If numberOfDimensions < 1 Or numberOfDimensions > MAX_DIMENSION Then
+        Err.Raise 5, methodName, "Invalid number of dimensions"
+    End If
+    Select Case vType
+    Case vbByte, vbInteger, vbLong, vbLongLong 'Integers
+    Case vbCurrency, vbDecimal, vbDouble, vbSingle, vbDate 'Decimal-point
+    Case vbBoolean, vbString, vbObject, vbDataObject, vbVariant 'Other
+    Case Else
+        Err.Raise 13, methodName, "Type mismatch"
+    End Select
+    '
+    Static fakeSafeArray() As Long
+    Static rm As REMOTE_MEMORY
+    #If Win64 Then
+        Const safeArraySize = 6
+    #Else
+        Const safeArraySize = 4
+    #End If
+    Const FADF_HAVEVARTYPE As Long = &H80
+    Const fFeaturesHi As Long = FADF_HAVEVARTYPE * &H10000
+    Dim i As Long
+    '
+    If Not rm.isInitialized Then
+        InitRemoteMemory rm
+        ReDim fakeSafeArray(0 To safeArraySize + MAX_DIMENSION * 2 - 1)
+        fakeSafeArray(1) = 1 'cbElements member - needs to be non-zero
+        rm.memValue = VarPtr(fakeSafeArray(0)) 'The fake ArrPtr
+        '
+        'Set 'cElements' to 1 for each SAFEARRAYBOUND
+        For i = safeArraySize To UBound(fakeSafeArray, 1) Step 2
+            fakeSafeArray(i) = 1
+        Next i
+    End If
+    fakeSafeArray(0) = fFeaturesHi + numberOfDimensions 'cDims and fFeatures
+    i = safeArraySize + (numberOfDimensions - 1) * 2 'Highest dimension position
+    '
+    fakeSafeArray(i) = 0 'Highest dimension must have 0 'cElements'
+    RemoteAssign rm, VarPtr(fakeSafeArray(0)), rm.remoteVT, vbArray + vType, EmptyArray, rm.memValue
+    fakeSafeArray(i) = 1
+End Function

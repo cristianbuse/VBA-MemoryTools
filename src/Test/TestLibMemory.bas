@@ -53,6 +53,8 @@ Public Sub RunAllTests()
     '
     TestMemCopy
     TestCloneParamArray
+    TestStringToIntegers
+    TestEmptyArray
     '
     Debug.Print "Finished running tests at " & Now()
 End Sub
@@ -774,3 +776,56 @@ End Sub
 Private Property Let LetSet(ByRef result As Variant, ByRef v As Variant)
     If IsObject(v) Then Set result = v Else result = v
 End Property
+
+Private Sub TestStringToIntegers()
+    Dim arr() As Integer
+    '
+    arr = StringToIntegers("ABC")
+    Debug.Assert arr(0) = AscW("A")
+    Debug.Assert arr(1) = AscW("B")
+    Debug.Assert arr(2) = AscW("C")
+    '
+    arr = StringToIntegers("ABC", 5)
+    Debug.Assert arr(5) = AscW("A")
+    Debug.Assert arr(6) = AscW("B")
+    Debug.Assert arr(7) = AscW("C")
+    '
+    arr = StringToIntegers(vbNullString)
+    Debug.Assert UBound(arr) - LBound(arr) + 1 = 0
+End Sub
+
+Private Sub TestEmptyArray()
+    Dim arr As Variant
+    Dim v As Variant
+    Dim i As Long
+    '
+    For Each v In Array(vbByte, vbInteger, vbLong, vbLongLong, vbCurrency, vbDecimal, vbDouble, vbSingle, vbDate, vbBoolean, vbString, vbObject, vbDataObject, vbVariant)
+        For i = 1 To 60
+            arr = EmptyArray(i, v)
+            Debug.Assert VarType(arr) = vbArray + v
+            Debug.Assert GetArrayDimsCount(arr) = i
+        Next i
+    Next v
+    '
+    On Error Resume Next
+    arr = EmptyArray(61, vbBoolean)
+    Debug.Assert Err.Number = 5
+    On Error GoTo 0
+    '
+    On Error Resume Next
+    arr = EmptyArray(2, 500)
+    Debug.Assert Err.Number = 13
+    On Error GoTo 0
+End Sub
+Private Function GetArrayDimsCount(ByRef arr As Variant) As Long
+    Const MAX_DIMENSION As Long = 60 'VB limit
+    Dim dimension As Long
+    Dim tempBound As Long
+    '
+    On Error GoTo FinalDimension
+    For dimension = 1 To MAX_DIMENSION
+        tempBound = LBound(arr, dimension)
+    Next dimension
+FinalDimension:
+    GetArrayDimsCount = dimension - 1
+End Function
