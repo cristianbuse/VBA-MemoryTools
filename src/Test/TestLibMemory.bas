@@ -792,6 +792,9 @@ Private Sub TestStringToIntegers()
     '
     arr = StringToIntegers(vbNullString)
     Debug.Assert UBound(arr) - LBound(arr) + 1 = 0
+    '
+    arr = StringToIntegers(StrConv("ABC", vbFromUnicode))
+    Debug.Assert arr(0) = Asc("A") + Asc("B") * &H100
 End Sub
 
 Private Sub TestEmptyArray()

@@ -859,7 +859,7 @@ Public Function StringToIntegers(ByRef s As String _
     '
     sArr.pvData = StrPtr(s)
     sArr.rgsabound0.lLbound = lowBound
-    sArr.rgsabound0.cElements = Len(s)
+    sArr.rgsabound0.cElements = LenB(s) \ 2
     '
     RemoteAssign rm, VarPtr(sArr), rm.remoteVT, vbArray + vbInteger, StringToIntegers, rm.memValue
 End Function
