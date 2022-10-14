@@ -95,6 +95,7 @@ Private Const VT_SPACING As Long = VARIANT_SIZE / INT_SIZE 'VarType spacing in a
     #End If
     Public Const vbLongPtr As Long = vbLongLong
 #Else
+    Public Const vbLongLong As Long = 20 'Useful in Select Case logic
     Public Const vbLongPtr As Long = vbLong
 #End If
 
