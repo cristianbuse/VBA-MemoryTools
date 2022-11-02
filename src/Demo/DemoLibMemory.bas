@@ -2,7 +2,7 @@ Attribute VB_Name = "DemoLibMemory"
 Option Explicit
 Option Private Module
 
-Private Const LOOPS As Long = 10000
+Private Const LOOPS As Long = 1000
 
 Sub DemoMain()
     Debug.Print String(24, "-") & " Speed " & String(24, "-")
@@ -165,6 +165,7 @@ Private Sub DemoMemCopySpeed()
     Dim dest As LongPtr
     Dim res1 As Double
     Dim res2 As Double
+    Dim slowFactor As Long
     '
     size = 2
     iterations = 2 ^ 21
@@ -186,13 +187,23 @@ Private Sub DemoMemCopySpeed()
         Next i
         res1 = Round(Timer - t, 3)
         '
-        t = Timer
-        For i = 1 To iterations
-            CopyMemory ByVal dest, ByVal src, size
-        Next i
-        res2 = Round(Timer - t, 3)
+        slowFactor = 10000 'In case API call is too slow
+        Do
+            t = Timer
+            For i = 1 To iterations \ slowFactor
+                CopyMemory ByVal dest, ByVal src, size
+            Next i
+            res2 = Round(Timer - t, 3)
+            If res2 < 0.1 Then
+                slowFactor = slowFactor / 10
+            Else
+                Exit Do
+            End If
+        Loop Until slowFactor = 1
         '
-        Debug.Print size, iterations, res1, res2
+        Debug.Print size, iterations, res1, res2 * slowFactor _
+                  & IIf(slowFactor > 1, " (extrapolated from " & iterations _
+                  \ slowFactor & " iterations that took " & res2 & ")", "")
         '
         Const maxLong As Long = 2147483647
         If CDbl(size) * 2 > maxLong Then
