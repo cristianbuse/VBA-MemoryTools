@@ -453,9 +453,9 @@ Private Sub TestReadCurrency()
         c = (2 ^ l - 1) / 10000
         Debug.Assert MemCur(VarPtr(c)) = c
     Next l
-    c = CCur("-922,337,203,685,477.5808")
+    c = CCur("-922337203685477.5808")
     Debug.Assert MemCur(VarPtr(c)) = c
-    c = CCur("922,337,203,685,477.5807")
+    c = CCur("922337203685477.5807")
     Debug.Assert MemCur(VarPtr(c)) = c
     '
     s = Chr$(65) & Chr$(66) & Chr$(67) & Chr$(68)
@@ -475,10 +475,10 @@ Private Sub TestWriteCurrency()
         MemCur(VarPtr(c2)) = c
         Debug.Assert c = c2
     Next l
-    c = CCur("-922,337,203,685,477.5808")
+    c = CCur("-922337203685477.5808")
     MemCur(VarPtr(c2)) = c
     Debug.Assert c = c2
-    c = CCur("922,337,203,685,477.5807")
+    c = CCur("922337203685477.5807")
     MemCur(VarPtr(c2)) = c
     Debug.Assert c = c2
     '
