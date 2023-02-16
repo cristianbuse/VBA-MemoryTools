@@ -686,6 +686,9 @@ Private Sub CopyBytes(ByVal bytesCount As Long _
     Dim s As String 'Must not be Variant so that LSet is faster
     Dim tempSize As Long
     Dim useBSTR As Boolean
+    Dim hasOverlap As Boolean
+    Dim overlapBSTRLen As Long
+    Dim overlapOffset As LongPtr
     '
     Do
         vtSrc = vbLong + VT_BYREF
@@ -731,7 +734,14 @@ Private Sub CopyBytes(ByVal bytesCount As Long _
         End If
         '
         'Prepare destination BSTR
+        If rmDest.memValue + 4 > rmSrc.memValue Then
+            hasOverlap = UnsignedAdd(rmSrc.memValue, tempSize + bstrPrefixSize) > rmDest.memValue
+            If hasOverlap Then overlapOffset = rmDest.memValue - rmSrc.memValue
+        Else
+            hasOverlap = False
+        End If
         vtDest = vbLong + VT_BYREF
+        If hasOverlap Then overlapBSTRLen = destValue
         destValue = tempSize
         vtDest = vbLongPtr
         rmDest.memValue = rmDest.memValue + bstrPrefixSize
@@ -765,6 +775,13 @@ Private Sub CopyBytes(ByVal bytesCount As Long _
         vtDest = vbLong + VT_BYREF
         destValue = bstrLength 'Copy the correct 'BSTR length' bytes
         vtDest = vbLongPtr
+        If hasOverlap Then
+            rmDest.memValue = rmDest.memValue + overlapOffset
+            vtDest = vbLong + VT_BYREF
+            destValue = overlapBSTRLen
+            vtDest = vbLongPtr
+            rmDest.memValue = rmDest.memValue - overlapOffset
+        End If
         '
         If bytes > 0 Then 'Advance address for next chunk
             Dim bytesOffset As Long: bytesOffset = chunkSize + bstrPrefixSize

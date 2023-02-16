@@ -719,6 +719,22 @@ Private Sub TestMemCopy()
         Debug.Assert arr1(i) = arr2(i)
     Next i
     Debug.Assert arr1(UBound(arr1) - 1) = 55
+    '
+    'Test overlap
+    ReDim arr1(0 To 100)
+    For i = 0 To 100
+        arr1(i) = i
+    Next i
+    MemCopy VarPtr(arr1(10)), VarPtr(arr1(0)), 50
+    For i = 0 To 9
+        Debug.Assert arr1(i) = i
+    Next i
+    For i = 10 To 59
+        Debug.Assert arr1(i) = i - 10
+    Next i
+    For i = 60 To 100
+        Debug.Assert arr1(i) = i
+    Next i
 End Sub
 
 Private Sub TestCloneParamArray()
