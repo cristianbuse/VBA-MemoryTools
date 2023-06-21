@@ -610,6 +610,7 @@ End Function
 Public Sub MemCopy(ByVal destinationPtr As LongPtr _
                  , ByVal sourcePtr As LongPtr _
                  , ByVal bytesCount As LongPtr)
+    If destinationPtr = sourcePtr Then Exit Sub
 #If Mac Then
     CopyMemory ByVal destinationPtr, ByVal sourcePtr, bytesCount
 #Else
@@ -930,3 +931,26 @@ Public Function EmptyArray(ByVal numberOfDimensions As Long _
     RemoteAssign rm, VarPtr(fakeSafeArray(0)), rm.remoteVT, vbArray + vType, EmptyArray, rm.memValue
     fakeSafeArray(i) = 1
 End Function
+
+'*******************************************************************************
+'Allows user to update the LBound Index for an array dimension
+'*******************************************************************************
+Public Sub UpdateLBound(ByRef arr As Variant _
+                      , ByVal dimension As Long _
+                      , ByVal newLB As Long)
+    #If Win64 Then
+        Const bOffset As Long = 28
+    #Else
+        Const bOffset As Long = 20
+    #End If
+    Const methodName As String = "UpdateLBound"
+    Const maxL As Long = &H7FFFFFFF
+    Dim dimensionCount As Long: dimensionCount = GetArrayDimsCount(arr)
+    '
+    If dimension < 1 Or dimension > dimensionCount Then
+        Err.Raise 5, methodName, "Invalid dimension or not array"
+    ElseIf maxL - UBound(arr, dimension) + LBound(arr, dimension) < newLB Then
+        Err.Raise 5, methodName, "New bound overflow"
+    End If
+    MemLong(ArrPtr(arr) + bOffset + (dimensionCount - dimension) * 8) = newLB
+End Sub
