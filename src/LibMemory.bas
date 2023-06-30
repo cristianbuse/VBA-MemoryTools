@@ -954,3 +954,22 @@ Public Sub UpdateLBound(ByRef arr As Variant _
     End If
     MemLong(ArrPtr(arr) + bOffset + (dimensionCount - dimension) * 8) = newLB
 End Sub
+
+'*******************************************************************************
+'Returns the Number of dimensions for an input array
+'Returns 0 if array is uninitialized or input not an array
+'Note that a zero-length array has 1 dimension! Ex. Array() bounds are (0 to -1)
+'*******************************************************************************
+Private Function GetArrayDimsCount(ByRef arr As Variant) As Long
+    Const MAX_DIMENSION As Long = 60 'VB limit
+    Dim dimension As Long
+    Dim tempBound As Long
+    '
+    On Error GoTo FinalDimension
+    For dimension = 1 To MAX_DIMENSION
+        tempBound = LBound(arr, dimension)
+    Next dimension
+FinalDimension:
+    GetArrayDimsCount = dimension - 1
+End Function
+
