@@ -735,7 +735,7 @@ Private Sub CopyBytes(ByVal bytesCount As Long _
         End If
         '
         'Prepare destination BSTR
-        If rmDest.memValue + 4 > rmSrc.memValue Then
+        If rmDest.memValue > rmSrc.memValue Then
             hasOverlap = UnsignedAdd(rmSrc.memValue, tempSize + bstrPrefixSize) > rmDest.memValue
             If hasOverlap Then overlapOffset = rmDest.memValue - rmSrc.memValue
         Else

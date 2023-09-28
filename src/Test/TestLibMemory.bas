@@ -736,6 +736,76 @@ Private Sub TestMemCopy()
     For i = 60 To 100
         Debug.Assert arr1(i) = i
     Next i
+    '
+    For i = 0 To 100
+        arr1(i) = i
+    Next i
+    MemCopy VarPtr(arr1(10)), VarPtr(arr1(13)), 50
+    For i = 0 To 9
+        Debug.Assert arr1(i) = i
+    Next i
+    For i = 10 To 59
+        Debug.Assert arr1(i) = i + 3
+    Next i
+    For i = 60 To 100
+        Debug.Assert arr1(i) = i
+    Next i
+    '
+    For i = 0 To 100
+        arr1(i) = i
+    Next i
+    MemCopy VarPtr(arr1(10)), VarPtr(arr1(7)), 50
+    For i = 0 To 9
+        Debug.Assert arr1(i) = i
+    Next i
+    For i = 10 To 59
+        Debug.Assert arr1(i) = i - 3
+    Next i
+    For i = 60 To 100
+        Debug.Assert arr1(i) = i
+    Next i
+    '
+    For i = 0 To 100
+        arr1(i) = i
+    Next i
+    MemCopy VarPtr(arr1(10)), VarPtr(arr1(1)), 50
+    For i = 0 To 9
+        Debug.Assert arr1(i) = i
+    Next i
+    For i = 10 To 59
+        Debug.Assert arr1(i) = i - 9
+    Next i
+    For i = 60 To 100
+        Debug.Assert arr1(i) = i
+    Next i
+    '
+    For i = 0 To 100
+        arr1(i) = i
+    Next i
+    MemCopy VarPtr(arr1(10)), VarPtr(arr1(15)), 50
+    For i = 0 To 9
+        Debug.Assert arr1(i) = i
+    Next i
+    For i = 10 To 59
+        Debug.Assert arr1(i) = i + 5
+    Next i
+    For i = 60 To 100
+        Debug.Assert arr1(i) = i
+    Next i
+    '
+    For i = 0 To 100
+        arr1(i) = i
+    Next i
+    MemCopy VarPtr(arr1(10)), VarPtr(arr1(27)), 50
+    For i = 0 To 9
+        Debug.Assert arr1(i) = i
+    Next i
+    For i = 10 To 59
+        Debug.Assert arr1(i) = i + 17
+    Next i
+    For i = 60 To 100
+        Debug.Assert arr1(i) = i
+    Next i
 End Sub
 
 Private Sub TestCloneParamArray()
