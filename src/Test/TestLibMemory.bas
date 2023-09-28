@@ -54,6 +54,7 @@ Public Sub RunAllTests()
     TestMemCopy
     TestCloneParamArray
     TestStringToIntegers
+    TestIntegersToString
     TestEmptyArray
     '
     Debug.Print "Finished running tests at " & Now()
@@ -801,16 +802,57 @@ Private Sub TestStringToIntegers()
     Debug.Assert arr(1) = AscW("B")
     Debug.Assert arr(2) = AscW("C")
     '
-    arr = StringToIntegers("ABC", 5)
+    arr = StringToIntegers("ABC", outLowBound:=5)
     Debug.Assert arr(5) = AscW("A")
     Debug.Assert arr(6) = AscW("B")
     Debug.Assert arr(7) = AscW("C")
+    '
+    arr = StringToIntegers("ABC", 2, , 5)
+    Debug.Assert arr(5) = AscW("B")
+    Debug.Assert arr(6) = AscW("C")
+    On Error Resume Next
+    Dim i As Integer: i = arr(7)
+    Debug.Assert Err.Number = 9
+    On Error GoTo 0
+    '
+    arr = StringToIntegers("ABC", 2, 7, 5)
+    Debug.Assert arr(5) = AscW("B")
+    Debug.Assert arr(6) = AscW("C")
+    '
+    arr = StringToIntegers("ABC", 2, 0, 5)
+    Debug.Assert LBound(arr) = 5
+    Debug.Assert UBound(arr) = 4
+    '
+    arr = StringToIntegers(vbNullString, 2, 0, 5)
+    Debug.Assert LBound(arr) = 5
+    Debug.Assert UBound(arr) = 4
     '
     arr = StringToIntegers(vbNullString)
     Debug.Assert UBound(arr) - LBound(arr) + 1 = 0
     '
     arr = StringToIntegers(StrConv("ABC", vbFromUnicode))
     Debug.Assert arr(0) = Asc("A") + Asc("B") * &H100
+End Sub
+
+Private Sub TestIntegersToString()
+    Dim arr() As Integer
+    Dim s As String
+    '
+    On Error Resume Next
+    s = IntegersToString(arr)
+    Debug.Assert Err.Number = 5
+    On Error GoTo 0
+    '
+    ReDim arr(0 To 0): arr(0) = Asc("A")
+    Debug.Assert IntegersToString(arr) = "A"
+    '
+    ReDim Preserve arr(0 To 1)
+    Debug.Assert IntegersToString(arr) = "A" & vbNullChar
+    Debug.Assert IntegersToString(arr, 5) = vbNullString
+    Debug.Assert IntegersToString(arr, 1) = vbNullChar
+    Debug.Assert IntegersToString(arr, 1, -1) = vbNullChar
+    Debug.Assert IntegersToString(arr, 1, 2) = vbNullChar
+    Debug.Assert IntegersToString(arr, 1, 0) = vbNullString
 End Sub
 
 Private Sub TestEmptyArray()

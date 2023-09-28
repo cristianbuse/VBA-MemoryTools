@@ -861,11 +861,28 @@ End Function
 
 '*******************************************************************************
 'Reads the memory of a String to an Array of Integers
+'Notes:
+'   - Ignores the last byte if input has an odd number of bytes
+'   - If 'outLength' is -1 (default) then the remaining length is returned
+'   - Excess length is ignored
 '*******************************************************************************
 Public Function StringToIntegers(ByRef s As String _
-                               , Optional ByVal lowBound As Long = 0) As Integer()
+                               , Optional ByVal startIndex As Long = 1 _
+                               , Optional ByVal outLength As Long = -1 _
+                               , Optional ByVal outLowBound As Long = 0) As Integer()
     Static rm As REMOTE_MEMORY
     Static sArr As SAFEARRAY_1D
+    Const methodName As String = "StringToIntegers"
+    Dim cLen As Long: cLen = Len(s)
+
+    If startIndex < 1 Then
+        Err.Raise 9, methodName, "Invalid Start Index"
+    ElseIf outLength < -1 Then
+        Err.Raise 5, methodName, "Invalid Length for output"
+    ElseIf outLength = -1 Or startIndex + outLength - 1 > cLen Then
+        outLength = cLen - startIndex + 1 'Excess length is ignored
+        If outLength < 0 Then outLength = 0
+    End If
     '
     If Not rm.isInitialized Then
         InitRemoteMemory rm
@@ -876,11 +893,50 @@ Public Function StringToIntegers(ByRef s As String _
         End With
     End If
     '
-    sArr.pvData = StrPtr(s)
-    sArr.rgsabound0.lLbound = lowBound
-    sArr.rgsabound0.cElements = LenB(s) \ 2
+    sArr.pvData = StrPtr(s) + (startIndex - 1) * INT_SIZE
+    sArr.rgsabound0.lLbound = outLowBound
+    sArr.rgsabound0.cElements = outLength
     '
     RemoteAssign rm, VarPtr(sArr), rm.remoteVT, vbArray + vbInteger, StringToIntegers, rm.memValue
+End Function
+
+'*******************************************************************************
+'Reads the memory of an Array of Integers into a String
+'Notes:
+'   - If 'outLength' is -1 (default) then the remaining length is returned
+'   - Excess length is ignored
+'*******************************************************************************
+Public Function IntegersToString(ByRef ints() As Integer _
+                               , Optional ByVal startIndex As Long = 0 _
+                               , Optional ByVal outLength As Long = -1) As String
+    Static rm As REMOTE_MEMORY
+    Static sArr As SAFEARRAY_1D
+    Const methodName As String = "IntegersToString"
+
+    If GetArrayDimsCount(ints) <> 1 Then
+        Err.Raise 5, methodName, "Expected 1D Array of Integers"
+    ElseIf startIndex < LBound(ints) Then
+        Err.Raise 9, methodName, "Invalid Start Index"
+    ElseIf outLength < -1 Then
+        Err.Raise 5, methodName, "Invalid Length for output"
+    ElseIf outLength = -1 Or startIndex + outLength - 1 > UBound(ints) Then
+        outLength = UBound(ints) - startIndex + 1
+        If outLength < 0 Then Exit Function
+    End If
+    If Not rm.isInitialized Then
+        InitRemoteMemory rm
+        With sArr
+            .cDims = 1
+            .fFeatures = FADF_HAVEVARTYPE
+            .cbElements = BYTE_SIZE
+            .rgsabound0.lLbound = 0
+        End With
+    End If
+    '
+    sArr.pvData = VarPtr(ints(startIndex))
+    sArr.rgsabound0.cElements = outLength * INT_SIZE
+    '
+    RemoteAssign rm, VarPtr(sArr), rm.remoteVT, vbArray + vbByte, IntegersToString, rm.memValue
 End Function
 
 '*******************************************************************************
