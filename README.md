@@ -32,6 +32,7 @@ A few other utilities:
  - ```CloneParamArray``` - copies a param array to another array of Variants while preserving ByRef elements
  - ```GetArrayByRef``` - returns the input array wrapped in a ByRef Variant without copying the array
  - ```StringToIntegers``` - copies the memory of a String to an Array of Integers
+ - ```IntegersToString``` - copies the memory of an Array of Integers to a String 
  - ```EmptyArray``` - returns an empty array of the requested size and data type
  - ```UpdateLBound``` - changes the Lower Bound for a given array's dimension
 
