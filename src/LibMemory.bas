@@ -601,11 +601,11 @@ End Function
 'Alternative for CopyMemory - not affected by API speed issues on Windows
 '--------------------------
 'Mac - wrapper around CopyMemory/memmove
-'Win - bytesCount 1 to 2147483647 - no API calls. Uses a combination of
+'Win - bytesCount 1 to 16777216 - no API calls. Uses a combination of
 '      REMOTE_MEMORY/SAFEARRAY_1D structs as well as native Strings and Arrays
-'      to manipulate memory. Works within size limitation of Strings in VBA
+'      to manipulate memory.
 '      For some smaller sizes (<=5) optimizes via MemLong, MemInt, MemByte etc.
-'    - bytesCount < 0 or > 2147483647 - wrapper around CopyMemory/RtlMoveMemory
+'    - bytesCount < 0 or > 16777216 - wrapper around CopyMemory/RtlMoveMemory
 '*******************************************************************************
 Public Sub MemCopy(ByVal destinationPtr As LongPtr _
                  , ByVal sourcePtr As LongPtr _
@@ -614,12 +614,8 @@ Public Sub MemCopy(ByVal destinationPtr As LongPtr _
 #If Mac Then
     CopyMemory ByVal destinationPtr, ByVal sourcePtr, bytesCount
 #Else
-    #If Win64 Then
-        Const maxLong As Long = &H7FFFFFFF
-        If bytesCount < 0 Or bytesCount > maxLong Then
-    #Else
-        If bytesCount < 0 Then
-    #End If
+    Const maxSizeSpeedGain As Long = &H1000000 'Beyond this use API directly
+    If bytesCount < 0 Or bytesCount > maxSizeSpeedGain Then
         CopyMemory ByVal destinationPtr, ByVal sourcePtr, bytesCount
         Exit Sub
     End If
@@ -685,111 +681,83 @@ Private Sub CopyBytes(ByVal bytesCount As Long _
     Dim bytes As Long: bytes = bytesCount - bstrPrefixSize
     Dim bstrLength As Long
     Dim s As String 'Must not be Variant so that LSet is faster
-    Dim tempSize As Long
     Dim useBSTR As Boolean
     Dim hasOverlap As Boolean
     Dim overlapBSTRLen As Long
     Dim overlapOffset As LongPtr
     '
-    Do
-        vtSrc = vbLong + VT_BYREF
-        bstrLength = rmSrc.memValue 'Copy first 4 bytes froum source
-        vtSrc = vbLongPtr
-        '
-        Const maxMidBs As Long = 2 ^ 5 'Use SAFEARRAY and MidB below this value
-        useBSTR = (bstrLength >= bytes Or bstrLength < 0) And bytes > maxMidBs
-        If useBSTR Then 'Prepare source BSTR
-            rmBSTR.memValue = VarPtr(s)
-            #If Win64 Then
-                Const curBSTRPrefixSize As Currency = 0.0004
-                vtSrc = vbCurrency
-                vtBSTR = vbCurrency + VT_BYREF
-                bstrPtrValue = rmSrc.memValue + curBSTRPrefixSize
-                vtSrc = vbLongPtr
-            #Else
-                vtBSTR = vbLong + VT_BYREF
-                bstrPtrValue = rmSrc.memValue + bstrPrefixSize
-            #End If
-            Const maxStartMidB As Long = 2 ^ 30 'MidB second param limit (bug)
-            If bytes > maxStartMidB And bytes Mod 2 = 1 Then
-                tempSize = maxStartMidB
-                bytes = bytes - maxStartMidB
-            Else
-                tempSize = bytes
-                bytes = 0
-            End If
-        Else 'Prepare source SAFEARRAY
-            'For large amounts it is faster to copy memory in smaller chunks
-            Const chunkSize As Long = 2 ^ 16 'Similar performance with 2 ^ 17
-            '
-            If bytes > chunkSize + bstrPrefixSize + 1 Then
-                tempSize = chunkSize
-                bytes = bytes - chunkSize - bstrPrefixSize
-            Else
-                tempSize = bytes
-                bytes = 0
-            End If
-            sArr.pvData = rmSrc.memValue + bstrPrefixSize
-            sArr.rgsabound0.cElements = tempSize
-            vtArr = vbArray + vbByte
+    vtSrc = vbLong + VT_BYREF
+    bstrLength = rmSrc.memValue 'Copy first 4 bytes froum source
+    vtSrc = vbLongPtr
+    '
+    Const maxMidBs As Long = 2 ^ 5 'Use SAFEARRAY and MidB below this value
+    useBSTR = (bstrLength >= bytes Or bstrLength < 0) And bytes > maxMidBs
+    If useBSTR Then 'Prepare source BSTR
+        rmBSTR.memValue = VarPtr(s)
+        #If Win64 Then
+            Const curBSTRPrefixSize As Currency = 0.0004
+            vtSrc = vbCurrency
+            vtBSTR = vbCurrency + VT_BYREF
+            bstrPtrValue = rmSrc.memValue + curBSTRPrefixSize
+            vtSrc = vbLongPtr
+        #Else
+            vtBSTR = vbLong + VT_BYREF
+            bstrPtrValue = rmSrc.memValue + bstrPrefixSize
+        #End If
+    Else 'Prepare source SAFEARRAY
+        sArr.pvData = rmSrc.memValue + bstrPrefixSize
+        sArr.rgsabound0.cElements = bytes
+        vtArr = vbArray + vbByte
+    End If
+    '
+    'Prepare destination BSTR
+    If rmDest.memValue > rmSrc.memValue Then
+        hasOverlap = UnsignedAdd(rmSrc.memValue, bytes + bstrPrefixSize) > rmDest.memValue
+        If hasOverlap Then overlapOffset = rmDest.memValue - rmSrc.memValue
+    Else
+        hasOverlap = False
+    End If
+    vtDest = vbLong + VT_BYREF
+    If hasOverlap Then overlapBSTRLen = destValue
+    destValue = bytes
+    vtDest = vbLongPtr
+    rmDest.memValue = rmDest.memValue + bstrPrefixSize
+    vtDest = vbString
+    '
+    'Copy and clean
+    If useBSTR Then
+        LSet destValue = s 'LSet cannot copy an odd number of bytes
+        If bytes Mod 2 = 1 Then
+            MidB(destValue, bytes, 1) = MidB$(s, bytes, 1)
         End If
-        '
-        'Prepare destination BSTR
-        If rmDest.memValue > rmSrc.memValue Then
-            hasOverlap = UnsignedAdd(rmSrc.memValue, tempSize + bstrPrefixSize) > rmDest.memValue
-            If hasOverlap Then overlapOffset = rmDest.memValue - rmSrc.memValue
+        bstrPtrValue = 0
+        vtBSTR = vbEmpty
+    Else
+        Const maxMidBa As Long = maxMidBs * 2 ^ 3
+        If bytes > maxMidBa Then
+            LSet destValue = arrBytes
+            If bytes Mod 2 = 1 Then
+                Static lastByte(0 To 0) As Byte
+                lastByte(0) = arrBytes(UBound(arrBytes))
+                MidB(destValue, bytes, 1) = lastByte
+            End If
         Else
-            hasOverlap = False
+            MidB(destValue, 1) = arrBytes
         End If
+        vtArr = vbEmpty
+    End If
+    '
+    vtDest = vbLongPtr
+    rmDest.memValue = rmDest.memValue - bstrPrefixSize
+    vtDest = vbLong + VT_BYREF
+    destValue = bstrLength 'Copy the correct 'BSTR length' bytes
+    vtDest = vbLongPtr
+    If hasOverlap Then
+        rmDest.memValue = rmDest.memValue + overlapOffset
         vtDest = vbLong + VT_BYREF
-        If hasOverlap Then overlapBSTRLen = destValue
-        destValue = tempSize
+        destValue = overlapBSTRLen
         vtDest = vbLongPtr
-        rmDest.memValue = rmDest.memValue + bstrPrefixSize
-        vtDest = vbString
-        '
-        'Copy and clean
-        If useBSTR Then
-            LSet destValue = s 'LSet cannot copy an odd number of bytes
-            If tempSize Mod 2 = 1 Then
-                MidB(destValue, tempSize, 1) = MidB$(s, tempSize, 1)
-            End If
-            bstrPtrValue = 0
-            vtBSTR = vbEmpty
-        Else
-            Const maxMidBa As Long = maxMidBs * 2 ^ 3
-            If tempSize > maxMidBa Then
-                LSet destValue = arrBytes
-                If tempSize Mod 2 = 1 Then
-                    Static lastByte(0 To 0) As Byte
-                    lastByte(0) = arrBytes(UBound(arrBytes))
-                    MidB(destValue, tempSize, 1) = lastByte
-                End If
-            Else
-                MidB(destValue, 1) = arrBytes
-            End If
-            vtArr = vbEmpty
-        End If
-        '
-        vtDest = vbLongPtr
-        rmDest.memValue = rmDest.memValue - bstrPrefixSize
-        vtDest = vbLong + VT_BYREF
-        destValue = bstrLength 'Copy the correct 'BSTR length' bytes
-        vtDest = vbLongPtr
-        If hasOverlap Then
-            rmDest.memValue = rmDest.memValue + overlapOffset
-            vtDest = vbLong + VT_BYREF
-            destValue = overlapBSTRLen
-            vtDest = vbLongPtr
-            rmDest.memValue = rmDest.memValue - overlapOffset
-        End If
-        '
-        If bytes > 0 Then 'Advance address for next chunk
-            Dim bytesOffset As Long: bytesOffset = chunkSize + bstrPrefixSize
-            rmDest.memValue = UnsignedAdd(rmDest.memValue, bytesOffset)
-            rmSrc.memValue = UnsignedAdd(rmSrc.memValue, bytesOffset)
-        End If
-    Loop Until bytes = 0
+    End If
 End Sub
 
 '*******************************************************************************
