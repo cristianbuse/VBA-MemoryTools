@@ -569,14 +569,14 @@ End Function
 
 '*******************************************************************************
 'Returns the memory address of a variable of array type
-'Returns error 5 for a non-array or an array wrapped in a Variant
+'Returns error 5 for a non-array
 '*******************************************************************************
 Public Function VarPtrArr(ByRef arr As Variant) As LongPtr
-    Const vtArrByRef As Long = vbArray + VT_BYREF
     Dim vt As VbVarType: vt = MemInt(VarPtr(arr)) 'VarType(arr) ignores VT_BYREF
-    If (vt And vtArrByRef) = vtArrByRef Then
+    If vt And vbArray Then
         Const pArrayOffset As Long = 8
-        VarPtrArr = MemLongPtr(VarPtr(arr) + pArrayOffset)
+        VarPtrArr = VarPtr(arr) + pArrayOffset
+        If vt And VT_BYREF Then VarPtrArr = MemLongPtr(VarPtrArr)
     Else
         Err.Raise 5, "VarPtrArr", "Array required"
     End If
