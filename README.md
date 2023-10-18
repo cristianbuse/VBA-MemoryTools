@@ -1,15 +1,19 @@
 # VBA-MemoryTools
-Native memory manipulation in VBA
+Native memory manipulation in VBA.
 
-Using ```CopyMemory``` API (RtlMoveMemory on Windows) is quite slow when used many times. Moreover, on some systems this Memory API is even slower due to certain software (e.g. Windows Defender - see [article](https://stackoverflow.com/questions/57885185/windows-defender-extremly-slowing-down-macro-only-on-windows-10)). The API can become so slow that is pretty much unusable (e.g. on my x32 Windows machine it is 600 times slower than it used to be). Using the **LibMemory** module presented here overcomes the speed issues for reading and writing from and into memory.
+There is an issue with the speed of API calls in **VBA7**. This is very well tested and explained in [this Code Review question](https://codereview.stackexchange.com/questions/270258/evaluate-performance-of-dll-calls-from-vba).
 
-Related [Code Review question](https://codereview.stackexchange.com/questions/252659/fast-native-memory-manipulation-in-vba)
+This library overcomes the speed issues for reading and writing from and into memory by using a native approach - see related [CR question](https://codereview.stackexchange.com/questions/252659/fast-native-memory-manipulation-in-vba).
+
+Moreover, this library exposes some useful utilities and wrappers to make it easier to manipulate memory. For **Mac**, **TwinBasic** and **VBA6** (and prior) this library simply uses wrapped API calls as there is no speed benefit in using the native approach.
+
+Copying a byte for 10,000 times on Windows with VBA7 x64 using ```RtlMoveMemory``` API takes around 10 seconds while the native By Ref approach takes only around 16 milliseconds for the same number of iterations. So, the speed gain is 600x is some cases.
 
 ## Implementation
-Same technique used [here](https://codereview.stackexchange.com/a/249125/227582) was implemented. A remote Variant allows the changing of the VarType on a second Variant which in turn reads memory remotely as well (has VT_BYREF flag set). A single CopyMemory API call is done when initializing the base REMOTE_MEMORY structure (see ```MemIntAPI```). Subsequent usage relies on native VBA code only.
+Same technique used [here](https://codereview.stackexchange.com/a/249125/227582) was implemented. A remote ```Variant``` allows the changing of the ```VarType``` on a second ```Variant``` which in turn reads memory remotely as well (has ```VT_BYREF``` flag set). A single CopyMemory API call is done when initializing the base REMOTE_MEMORY structure (see ```MemIntAPI```). Subsequent usage relies on native VBA code only.
 
 ## Use
-```MemCopy``` - a faster alternative to ```CopyMemory``` without API calls on Windows up to sizes of 2147483647 (max Long value and limitation of VB String). Uses a combination of fake BSTR and SAFEARRAY structures to copy memory.
+```MemCopy``` - a faster alternative to ```CopyMemory``` (for VBA7) without API calls on Windows up to sizes of 16777216. Uses a combination of fake BSTR and SAFEARRAY structures to copy memory.
 
 10 parametric properties (Get/Let) are exposed:
  01. ```MemByte```

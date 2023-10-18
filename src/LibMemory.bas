@@ -176,7 +176,7 @@ End Sub
 'Read/Write a Byte from/to memory
 '*******************************************************************************
 Public Property Get MemByte(ByVal memAddress As LongPtr) As Byte
-    #If Mac Then
+    #If Mac Or TWINBASIC Or (VBA7 = 0) Then
         CopyMemory MemByte, ByVal memAddress, 1
     #Else
         Static rm As REMOTE_MEMORY
@@ -184,7 +184,7 @@ Public Property Get MemByte(ByVal memAddress As LongPtr) As Byte
     #End If
 End Property
 Public Property Let MemByte(ByVal memAddress As LongPtr, ByVal newValue As Byte)
-    #If Mac Then
+    #If Mac Or TWINBASIC Or (VBA7 = 0) Then
         CopyMemory ByVal memAddress, newValue, 1
     #Else
         Static rm As REMOTE_MEMORY
@@ -196,7 +196,7 @@ End Property
 'Read/Write 2 Bytes (Integer) from/to memory
 '*******************************************************************************
 Public Property Get MemInt(ByVal memAddress As LongPtr) As Integer
-    #If Mac Then
+    #If Mac Or TWINBASIC Or (VBA7 = 0) Then
         CopyMemory MemInt, ByVal memAddress, 2
     #Else
         Static rm As REMOTE_MEMORY
@@ -204,7 +204,7 @@ Public Property Get MemInt(ByVal memAddress As LongPtr) As Integer
     #End If
 End Property
 Public Property Let MemInt(ByVal memAddress As LongPtr, ByVal newValue As Integer)
-    #If Mac Then
+    #If Mac Or TWINBASIC Or (VBA7 = 0) Then
         CopyMemory ByVal memAddress, newValue, 2
     #Else
         Static rm As REMOTE_MEMORY
@@ -216,7 +216,7 @@ End Property
 'Read/Write 2 Bytes (Boolean) from/to memory
 '*******************************************************************************
 Public Property Get MemBool(ByVal memAddress As LongPtr) As Boolean
-    #If Mac Then
+    #If Mac Or TWINBASIC Or (VBA7 = 0) Then
         CopyMemory MemBool, ByVal memAddress, 2
     #Else
         Static rm As REMOTE_MEMORY
@@ -224,7 +224,7 @@ Public Property Get MemBool(ByVal memAddress As LongPtr) As Boolean
     #End If
 End Property
 Public Property Let MemBool(ByVal memAddress As LongPtr, ByVal newValue As Boolean)
-    #If Mac Then
+    #If Mac Or TWINBASIC Or (VBA7 = 0) Then
         CopyMemory ByVal memAddress, newValue, 2
     #Else
         Static rm As REMOTE_MEMORY
@@ -236,7 +236,7 @@ End Property
 'Read/Write 4 Bytes (Long) from/to memory
 '*******************************************************************************
 Public Property Get MemLong(ByVal memAddress As LongPtr) As Long
-    #If Mac Then
+    #If Mac Or TWINBASIC Or (VBA7 = 0) Then
         CopyMemory MemLong, ByVal memAddress, 4
     #Else
         Static rm As REMOTE_MEMORY
@@ -244,7 +244,7 @@ Public Property Get MemLong(ByVal memAddress As LongPtr) As Long
     #End If
 End Property
 Public Property Let MemLong(ByVal memAddress As LongPtr, ByVal newValue As Long)
-    #If Mac Then
+    #If Mac Or TWINBASIC Or (VBA7 = 0) Then
         CopyMemory ByVal memAddress, newValue, 4
     #Else
         Static rm As REMOTE_MEMORY
@@ -256,7 +256,7 @@ End Property
 'Read/Write 4 Bytes (Single) from/to memory
 '*******************************************************************************
 Public Property Get MemSng(ByVal memAddress As LongPtr) As Single
-    #If Mac Then
+    #If Mac Or TWINBASIC Or (VBA7 = 0) Then
         CopyMemory MemSng, ByVal memAddress, 4
     #Else
         Static rm As REMOTE_MEMORY
@@ -264,7 +264,7 @@ Public Property Get MemSng(ByVal memAddress As LongPtr) As Single
     #End If
 End Property
 Public Property Let MemSng(ByVal memAddress As LongPtr, ByVal newValue As Single)
-    #If Mac Then
+    #If Mac Or TWINBASIC Or (VBA7 = 0) Then
         CopyMemory ByVal memAddress, newValue, 4
     #Else
         Static rm As REMOTE_MEMORY
@@ -277,7 +277,7 @@ End Property
 '*******************************************************************************
 #If Win64 Then
 Public Property Get MemLongLong(ByVal memAddress As LongLong) As LongLong
-    #If Mac Then
+    #If Mac Or TWINBASIC Or (VBA7 = 0) Then
         CopyMemory MemLongLong, ByVal memAddress, 8
     #Else
         'Cannot set Variant/LongLong ByRef so we cannot use 'RemoteAssign'
@@ -286,7 +286,7 @@ Public Property Get MemLongLong(ByVal memAddress As LongLong) As LongLong
     #End If
 End Property
 Public Property Let MemLongLong(ByVal memAddress As LongLong, ByVal newValue As LongLong)
-    #If Mac Then
+    #If Mac Or TWINBASIC Or (VBA7 = 0) Then
         CopyMemory ByVal memAddress, newValue, 8
     #Else
         'Cannot set Variant/LongLong ByRef so we use Currency instead
@@ -326,7 +326,7 @@ End Sub
 '   extra stack frame! Performance was chosen over code repetition!
 '*******************************************************************************
 Public Property Get MemLongPtr(ByVal memAddress As LongPtr) As LongPtr
-    #If Mac Then
+    #If Mac Or TWINBASIC Or (VBA7 = 0) Then
         CopyMemory MemLongPtr, ByVal memAddress, PTR_SIZE
     #ElseIf Win64 Then
         Static rm As REMOTE_MEMORY: rm.memValue = memAddress
@@ -337,7 +337,7 @@ Public Property Get MemLongPtr(ByVal memAddress As LongPtr) As LongPtr
     #End If
 End Property
 Public Property Let MemLongPtr(ByVal memAddress As LongPtr, ByVal newValue As LongPtr)
-    #If Mac Then
+    #If Mac Or TWINBASIC Or (VBA7 = 0) Then
         CopyMemory ByVal memAddress, newValue, PTR_SIZE
     #ElseIf Win64 Then
         Static rmSrc As REMOTE_MEMORY: rmSrc.memValue = VarPtr(newValue)
@@ -353,7 +353,7 @@ End Property
 'Read/Write 8 Bytes (Currency) from/to memory
 '*******************************************************************************
 Public Property Get MemCur(ByVal memAddress As LongPtr) As Currency
-    #If Mac Then
+    #If Mac Or TWINBASIC Or (VBA7 = 0) Then
         CopyMemory MemCur, ByVal memAddress, 8
     #Else
         Static rm As REMOTE_MEMORY
@@ -361,7 +361,7 @@ Public Property Get MemCur(ByVal memAddress As LongPtr) As Currency
     #End If
 End Property
 Public Property Let MemCur(ByVal memAddress As LongPtr, ByVal newValue As Currency)
-    #If Mac Then
+    #If Mac Or TWINBASIC Or (VBA7 = 0) Then
         CopyMemory ByVal memAddress, newValue, 8
     #Else
         Static rm As REMOTE_MEMORY
@@ -373,7 +373,7 @@ End Property
 'Read/Write 8 Bytes (Date) from/to memory
 '*******************************************************************************
 Public Property Get MemDate(ByVal memAddress As LongPtr) As Date
-    #If Mac Then
+    #If Mac Or TWINBASIC Or (VBA7 = 0) Then
         CopyMemory MemDate, ByVal memAddress, 8
     #Else
         Static rm As REMOTE_MEMORY
@@ -381,7 +381,7 @@ Public Property Get MemDate(ByVal memAddress As LongPtr) As Date
     #End If
 End Property
 Public Property Let MemDate(ByVal memAddress As LongPtr, ByVal newValue As Date)
-    #If Mac Then
+    #If Mac Or TWINBASIC Or (VBA7 = 0) Then
         CopyMemory ByVal memAddress, newValue, 8
     #Else
         Static rm As REMOTE_MEMORY
@@ -393,7 +393,7 @@ End Property
 'Read/Write 8 Bytes (Double) from/to memory
 '*******************************************************************************
 Public Property Get MemDbl(ByVal memAddress As LongPtr) As Double
-    #If Mac Then
+    #If Mac Or TWINBASIC Or (VBA7 = 0) Then
         CopyMemory MemDbl, ByVal memAddress, 8
     #Else
         Static rm As REMOTE_MEMORY
@@ -401,7 +401,7 @@ Public Property Get MemDbl(ByVal memAddress As LongPtr) As Double
     #End If
 End Property
 Public Property Let MemDbl(ByVal memAddress As LongPtr, ByVal newValue As Double)
-    #If Mac Then
+    #If Mac Or TWINBASIC Or (VBA7 = 0) Then
         CopyMemory ByVal memAddress, newValue, 8
     #Else
         Static rm As REMOTE_MEMORY
@@ -415,7 +415,7 @@ End Property
 Public Function MemObj(ByVal memAddress As LongPtr) As Object
     If memAddress = 0 Then Exit Function
     '
-    #If Mac Then
+    #If Mac Or TWINBASIC Or (VBA7 = 0) Then
         Dim obj As Object
         CopyMemory obj, memAddress, PTR_SIZE
         Set MemObj = obj
@@ -611,7 +611,7 @@ Public Sub MemCopy(ByVal destinationPtr As LongPtr _
                  , ByVal sourcePtr As LongPtr _
                  , ByVal bytesCount As LongPtr)
     If destinationPtr = sourcePtr Then Exit Sub
-#If Mac Then
+#If Mac Or TWINBASIC Or (VBA7 = 0) Then
     CopyMemory ByVal destinationPtr, ByVal sourcePtr, bytesCount
 #Else
     Const maxSizeSpeedGain As Long = &H1000000 'Beyond this use API directly
