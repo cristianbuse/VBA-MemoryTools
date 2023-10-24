@@ -13,7 +13,7 @@ Copying a byte for 10,000 times on Windows with VBA7 x64 using ```RtlMoveMemory`
 Same technique used [here](https://codereview.stackexchange.com/a/249125/227582) was implemented. A remote ```Variant``` allows the changing of the ```VarType``` on a second ```Variant``` which in turn reads memory remotely as well (has ```VT_BYREF``` flag set). A single CopyMemory API call is done when initializing the base REMOTE_MEMORY structure (see ```MemIntAPI```). Subsequent usage relies on native VBA code only.
 
 ## Use
-```MemCopy``` - a faster alternative to ```CopyMemory``` (for VBA7) without API calls on Windows up to sizes of 16777216. Uses a combination of fake BSTR and SAFEARRAY structures to copy memory.
+```MemCopy``` - a faster alternative to ```CopyMemory``` (for VBA7) without API calls on Windows up to sizes of 16777216. Uses a combination of fake BSTR and SAFEARRAY structures to copy memory. Defaults to ```CopyMemory``` when the APi is faster.
 
 10 parametric properties (Get/Let) are exposed:
  01. ```MemByte```
