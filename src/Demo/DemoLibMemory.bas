@@ -180,18 +180,18 @@ Private Sub DemoMemCopySpeed()
     Dim dest As LongPtr
     Dim res1 As Double
     Dim res2 As Double
+    Dim res3 As Double
     Dim slowFactor As Long
+    Dim s As String: s = String$(13, "-")
     '
     size = 2
     iterations = 2 ^ 21
-    Debug.Print "Size", "Iterations", "MemCopy", "CopyMemory"
+    Debug.Print "Size", "Iterations", "MemCopy", "MemCopy", "CopyMemory", "Notes"
+    Debug.Print "(Bytes)", "(Count)", "(SAFEARRAY)", "(BSTR)", "(DLL export)"
+    Debug.Print s, s, s, s, s, s
     Do
         ReDim a1(0 To size - 1)
         ReDim a2(0 To size - 1)
-        '
-        For i = 3 To UBound(a2) - 2 ^ 16 - 1 Step 2 ^ 16
-            a2(i) = 128 'This forces BSTR copy rather than SAFEARRAY
-        Next i
         '
         src = VarPtr(a2(0))
         dest = VarPtr(a1(0))
@@ -202,23 +202,30 @@ Private Sub DemoMemCopySpeed()
         Next i
         res1 = Round(Timer - t, 3)
         '
+        If size > 4 Then a2(3) = 128 'Force copy via BSTR
+        t = Timer
+        For i = 1 To iterations
+            MemCopy dest, src, size
+        Next i
+        res2 = Round(Timer - t, 3)
+        '
         slowFactor = 10000 'In case API call is too slow
         Do
             t = Timer
             For i = 1 To iterations \ slowFactor
                 CopyMemory ByVal dest, ByVal src, size
             Next i
-            res2 = Round(Timer - t, 3)
-            If res2 < 0.1 Then
-                slowFactor = slowFactor / 10
+            res3 = Round(Timer - t, 3)
+            If res3 < 0.1 Then
+                slowFactor = slowFactor \ 10
             Else
                 Exit Do
             End If
-        Loop Until slowFactor = 1
+        Loop Until slowFactor = 0
         '
-        Debug.Print size, iterations, res1, res2 * slowFactor _
-                  & IIf(slowFactor > 1, " (extrapolated from " & iterations _
-                  \ slowFactor & " iterations that took " & res2 & ")", "")
+        Debug.Print size, iterations, res1, res2, res3 * slowFactor _
+                  , IIf(slowFactor > 1, "extrapolated from " & iterations _
+                  \ slowFactor & " iterations that took " & res3, "")
         '
         Const maxLong As Long = 2147483647
         If CDbl(size) * 2 > maxLong Then
