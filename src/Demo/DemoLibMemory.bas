@@ -21,10 +21,14 @@ Option Private Module
     #End If
 #End If
 
-Private Const LOOPS As Long = 1000
-
 Sub DemoMain()
-    Debug.Print String(24, "-") & " Speed " & String(24, "-")
+    Dim s As String: s = String$(13, "-")
+    Debug.Print String(26, "-") & " Speed (seconds)" & String(27, "-")
+    Debug.Print AlignCenter("Data Type"), AlignCenter("Iterations"), AlignCenter("By Ref") _
+              , AlignCenter("CopyMemory"), AlignCenter("Notes")
+    Debug.Print AlignCenter("(To copy)"), AlignCenter("(Count)") _
+              , AlignCenter("(This Lib)"), AlignCenter("(DLL Export)")
+    Debug.Print s, s, s, s, s
     DemoMemByteSpeed
     DemoMemIntSpeed
     DemoMemLongSpeed
@@ -37,6 +41,18 @@ Sub DemoMain()
     Debug.Print String(30, "-") & " MemFill " & String(30, "-")
     DemoMemFillSpeed
 End Sub
+
+Private Function AlignRight(ByRef s As String, Optional ByVal size As Long = 13) As String
+    AlignRight = Right$(Space$(size) & s, size)
+End Function
+Private Function AlignCenter(ByRef s As String, Optional ByVal size As Long = 13) As String
+    Dim i As Long: i = size - Len(s)
+    If i < 1 Then
+        AlignCenter = s
+    Else
+        AlignCenter = Space$(i \ 2) & s & Space$(i / 2)
+    End If
+End Function
 
 Private Sub DemoInstanceRedirection()
     Const loopsCount As Long = 100000
@@ -62,21 +78,39 @@ Private Sub DemoMemByteSpeed()
     Dim x2 As Byte: x2 = 2
     Dim i As Long
     Dim t As Double
+    Dim slowFactor As Long
+    Dim res1 As Double
+    Dim res2 As Double
+    Const iterations As Long = 1000000
+    Dim sp As String: sp = Space$(13)
     '
     t = Timer
-    For i = 1 To LOOPS
+    For i = 1 To iterations
         MemByte(VarPtr(x1)) = MemByte(VarPtr(x2))
     Next i
-    Debug.Print "Copy <" & TypeName(x1) & "> By Ref " & Format$(LOOPS, "#,##0") _
-        & " times in " & Round(Timer - t, 3) & " seconds"
-    Debug.Assert x1 = x2
+    res1 = Round(Timer - t, 3)
     '
-    t = Timer
-    For i = 1 To LOOPS
-        CopyMemory x1, x2, 1
-    Next i
-    Debug.Print "Copy <" & TypeName(x1) & "> By API " & Format$(LOOPS, "#,##0") _
-        & " times in " & Round(Timer - t, 3) & " seconds"
+    slowFactor = 10000 'In case API call is too slow
+    Do
+        t = Timer
+        For i = 1 To iterations \ slowFactor
+            CopyMemory x1, x2, 1
+        Next i
+        res2 = Round(Timer - t, 3)
+        If res2 < 0.1 Then
+            slowFactor = slowFactor \ 10
+        Else
+            Exit Do
+        End If
+    Loop Until slowFactor = 0
+    If slowFactor = 0 Then slowFactor = 1 'For IIf (Div by Zero)
+    '
+    Debug.Print TypeName(x1), AlignRight(Format$(iterations, "#,##0")) _
+              , AlignRight(Format$(res1, "#,##0.000")) _
+              , AlignRight(Format$(res2 * slowFactor, "#,##0.000")) _
+              , IIf(slowFactor > 1, "(extrapolated from " _
+              & Format$(iterations \ slowFactor, "#,##0") _
+              & " iterations that took " & res2 & " seconds)", "")
     DoEvents
 End Sub
 
@@ -85,21 +119,38 @@ Private Sub DemoMemIntSpeed()
     Dim x2 As Integer: x2 = 22222
     Dim i As Long
     Dim t As Double
+    Dim slowFactor As Long
+    Dim res1 As Double
+    Dim res2 As Double
+    Const iterations As Long = 1000000
     '
     t = Timer
-    For i = 1 To LOOPS
+    For i = 1 To iterations
         MemInt(VarPtr(x1)) = MemInt(VarPtr(x2))
     Next i
-    Debug.Print "Copy <" & TypeName(x1) & "> By Ref " & Format$(LOOPS, "#,##0") _
-        & " times in " & Round(Timer - t, 3) & " seconds"
-    Debug.Assert x1 = x2
+    res1 = Round(Timer - t, 3)
     '
-    t = Timer
-    For i = 1 To LOOPS
-        CopyMemory x1, x2, 2
-    Next i
-    Debug.Print "Copy <" & TypeName(x1) & "> By API " & Format$(LOOPS, "#,##0") _
-        & " times in " & Round(Timer - t, 3) & " seconds"
+    slowFactor = 10000 'In case API call is too slow
+    Do
+        t = Timer
+        For i = 1 To iterations \ slowFactor
+            CopyMemory x1, x2, 2
+        Next i
+        res2 = Round(Timer - t, 3)
+        If res2 < 0.1 Then
+            slowFactor = slowFactor \ 10
+        Else
+            Exit Do
+        End If
+    Loop Until slowFactor = 0
+    If slowFactor = 0 Then slowFactor = 1 'For IIf (Div by Zero)
+    '
+    Debug.Print TypeName(x1), AlignRight(Format$(iterations, "#,##0")) _
+              , AlignRight(Format$(res1, "#,##0.000")) _
+              , AlignRight(Format$(res2 * slowFactor, "#,##0.000")) _
+              , IIf(slowFactor > 1, "(extrapolated from " _
+              & Format$(iterations \ slowFactor, "#,##0") _
+              & " iterations that took " & res2 & " seconds)", "")
     DoEvents
 End Sub
 
@@ -108,21 +159,38 @@ Private Sub DemoMemLongSpeed()
     Dim x2 As Long: x2 = 222222222
     Dim i As Long
     Dim t As Double
+    Dim slowFactor As Long
+    Dim res1 As Double
+    Dim res2 As Double
+    Const iterations As Long = 1000000
     '
     t = Timer
-    For i = 1 To LOOPS
+    For i = 1 To iterations
         MemLong(VarPtr(x1)) = MemLong(VarPtr(x2))
     Next i
-    Debug.Print "Copy <" & TypeName(x1) & "> By Ref " & Format$(LOOPS, "#,##0") _
-        & " times in " & Round(Timer - t, 3) & " seconds"
-    Debug.Assert x1 = x2
+    res1 = Round(Timer - t, 3)
     '
-    t = Timer
-    For i = 1 To LOOPS
-        CopyMemory x1, x2, 4
-    Next i
-    Debug.Print "Copy <" & TypeName(x1) & "> By API " & Format$(LOOPS, "#,##0") _
-        & " times in " & Round(Timer - t, 3) & " seconds"
+    slowFactor = 10000 'In case API call is too slow
+    Do
+        t = Timer
+        For i = 1 To iterations \ slowFactor
+            CopyMemory x1, x2, 4
+        Next i
+        res2 = Round(Timer - t, 3)
+        If res2 < 0.1 Then
+            slowFactor = slowFactor \ 10
+        Else
+            Exit Do
+        End If
+    Loop Until slowFactor = 0
+    If slowFactor = 0 Then slowFactor = 1 'For IIf (Div by Zero)
+    '
+    Debug.Print TypeName(x1), AlignRight(Format$(iterations, "#,##0")) _
+              , AlignRight(Format$(res1, "#,##0.000")) _
+              , AlignRight(Format$(res2 * slowFactor, "#,##0.000")) _
+              , IIf(slowFactor > 1, "(extrapolated from " _
+              & Format$(iterations \ slowFactor, "#,##0") _
+              & " iterations that took " & res2 & " seconds)", "")
     DoEvents
 End Sub
 
@@ -136,21 +204,38 @@ Private Sub DemoMemLongPtrSpeed()
     #End If
     Dim i As Long
     Dim t As Double
+    Dim slowFactor As Long
+    Dim res1 As Double
+    Dim res2 As Double
+    Const iterations As Long = 1000000
     '
     t = Timer
-    For i = 1 To LOOPS
+    For i = 1 To iterations
         MemLongPtr(VarPtr(x1)) = MemLongPtr(VarPtr(x2))
     Next i
-    Debug.Print "Copy <" & TypeName(x1) & "> By Ref " & Format$(LOOPS, "#,##0") _
-        & " times in " & Round(Timer - t, 3) & " seconds"
-    Debug.Assert x1 = x2
+    res1 = Round(Timer - t, 3)
     '
-    t = Timer
-    For i = 1 To LOOPS
-        CopyMemory x1, x2, PTR_SIZE
-    Next i
-    Debug.Print "Copy <" & TypeName(x1) & "> By API " & Format$(LOOPS, "#,##0") _
-        & " times in " & Round(Timer - t, 3) & " seconds"
+    slowFactor = 10000 'In case API call is too slow
+    Do
+        t = Timer
+        For i = 1 To iterations \ slowFactor
+            CopyMemory x1, x2, PTR_SIZE
+        Next i
+        res2 = Round(Timer - t, 3)
+        If res2 < 0.1 Then
+            slowFactor = slowFactor \ 10
+        Else
+            Exit Do
+        End If
+    Loop Until slowFactor = 0
+    If slowFactor = 0 Then slowFactor = 1 'For IIf (Div by Zero)
+    '
+    Debug.Print TypeName(x1), AlignRight(Format$(iterations, "#,##0")) _
+              , AlignRight(Format$(res1, "#,##0.000")) _
+              , AlignRight(Format$(res2 * slowFactor, "#,##0.000")) _
+              , IIf(slowFactor > 1, "(extrapolated from " _
+              & Format$(iterations \ slowFactor, "#,##0") _
+              & " iterations that took " & res2 & " seconds)", "")
     DoEvents
 End Sub
 
@@ -164,13 +249,15 @@ Private Sub DemoMemObjectSpeed()
     #Else
         Dim ptr As Long
     #End If
+    Const iterations As Long = 1000000
     '
     ptr = ObjPtr(d)
     t = Timer
-    For i = 1 To LOOPS
+    For i = 1 To iterations
         Set obj = MemObj(ptr)
     Next i
-    Debug.Print "Dereferenced an Object " & Format$(LOOPS, "#,##0") _
+    Debug.Print
+    Debug.Print "Dereferenced an Object " & Format$(iterations, "#,##0") _
         & " times in " & Round(Timer - t, 3) & " seconds"
     DoEvents
 End Sub
@@ -192,8 +279,10 @@ Private Sub DemoMemCopySpeed()
     '
     size = 2
     iterations = 2 ^ 21
-    Debug.Print "Size", "Iterations", "MemCopy", "MemCopy", "CopyMemory", "Notes"
-    Debug.Print "(Bytes)", "(Count)", "(SAFEARRAY)", "(BSTR)", "(DLL export)"
+    Debug.Print AlignCenter("Size"), AlignCenter("Iterations"), AlignCenter("MemCopy") _
+              , AlignCenter("MemCopy"), AlignCenter("CopyMemory"), AlignCenter("Notes")
+    Debug.Print AlignCenter("(Bytes)"), AlignCenter("(Count)"), AlignCenter("(SAFEARRAY)") _
+              , AlignCenter("(BSTR)"), AlignCenter("(DLL export)")
     Debug.Print s, s, s, s, s, s
     Do
         ReDim a1(0 To size - 1)
@@ -230,9 +319,14 @@ Private Sub DemoMemCopySpeed()
         Loop Until slowFactor = 0
         If slowFactor = 0 Then slowFactor = 1 'For IIf (Div by Zero)
         '
-        Debug.Print size, iterations, res1, res2, res3 * slowFactor _
-                  , IIf(slowFactor > 1, "extrapolated from " & iterations _
-                  \ slowFactor & " iterations that took " & res3, "")
+        Debug.Print AlignRight(Format$(size, "#,##0")) _
+                  , AlignRight(Format$(iterations, "#,##0")) _
+                  , AlignRight(Format$(res1, "#,##0.000")) _
+                  , AlignRight(Format$(res2, "#,##0.000")) _
+                  , AlignRight(Format$(res3 * slowFactor, "#,##0.000")) _
+                  , IIf(slowFactor > 1, "(extrapolated from " _
+                  & Format$(iterations \ slowFactor, "#,##0") _
+                  & " iterations that took " & res3 & " seconds)", "")
         '
         Const maxLong As Long = 2147483647
         If CDbl(size) * 2 > maxLong Then
@@ -264,8 +358,10 @@ Private Sub DemoMemFillSpeed()
     '
     size = 2
     iterations = 2 ^ 21
-    Debug.Print "Size", "Iterations", "MemFill", "FillMemory", "Notes"
-    Debug.Print "(Bytes)", "(Count)", "MidB-MemCopy", "(DLL export)"
+    Debug.Print AlignCenter("Size"), AlignCenter("Iterations"), AlignCenter("MemFill") _
+              , AlignCenter("FillMemory"), AlignCenter("Notes")
+    Debug.Print AlignCenter("(Bytes)"), AlignCenter("(Count)") _
+              , AlignCenter("MidB-MemCopy"), AlignCenter("(DLL export)")
     Debug.Print s, s, s, s, s
     Do
         ReDim a(0 To size - 1)
@@ -297,9 +393,13 @@ Private Sub DemoMemFillSpeed()
         Loop Until slowFactor = 0
         If slowFactor = 0 Then slowFactor = 1 'For IIf (Div by Zero)
         '
-        Debug.Print size, iterations, res1, res2 * slowFactor _
-                  , IIf(slowFactor > 1, "extrapolated from " & iterations _
-                  \ slowFactor & " iterations that took " & res2, "")
+        Debug.Print AlignRight(Format$(size, "#,##0")) _
+                  , AlignRight(Format$(iterations, "#,##0")) _
+                  , AlignRight(Format$(res1, "#,##0.000")) _
+                  , AlignRight(Format$(res2 * slowFactor, "#,##0.000")) _
+                  , IIf(slowFactor > 1, "(extrapolated from " _
+                  & Format$(iterations \ slowFactor, "#,##0") _
+                  & " iterations that took " & res2 & " seconds)", "")
         '
         Const maxLong As Long = 2147483647
         If CDbl(size) * 2 > maxLong Then
