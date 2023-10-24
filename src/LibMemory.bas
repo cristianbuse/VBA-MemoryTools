@@ -1002,6 +1002,13 @@ FinalDimension:
 End Function
 
 '*******************************************************************************
+'Fills target memory with zero
+'*******************************************************************************
+Public Sub MemZero(ByVal destinationPtr As LongPtr, ByVal bytesCount As LongPtr)
+    MemFill destinationPtr, bytesCount, 0
+End Sub
+
+'*******************************************************************************
 'Fills target memory with the specified Byte value
 '*******************************************************************************
 Public Sub MemFill(ByVal destinationPtr As LongPtr _

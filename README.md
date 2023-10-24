@@ -15,6 +15,7 @@ Same technique used [here](https://codereview.stackexchange.com/a/249125/227582)
 ## Use
 ```MemCopy``` - a faster alternative to ```CopyMemory``` (for VBA7) without API calls on Windows. Uses a combination of fake BSTR and SAFEARRAY structures to copy memory. Only defaults to ```CopyMemory``` when the API is faster.
 ```MemFill``` - a faster alternative to ```FillMemory``` (for VBA7) without API calls on Windows. Uses a fake BSTR and a call to ```MidB$``` to fill memory. Only defaults to ```FillMemory``` when the API is faster.
+```MemZero``` - wrapper for ```MemFill``` with byte value set to zero.
 
 10 parametric properties (Get/Let) are exposed:
  01. ```MemByte```
