@@ -5,15 +5,19 @@ Option Private Module
 #If Mac Then
     #If VBA7 Then
         Private Declare PtrSafe Function CopyMemory Lib "/usr/lib/libc.dylib" Alias "memmove" (Destination As Any, Source As Any, ByVal Length As LongPtr) As LongPtr
+        Private Declare PtrSafe Function FillMemory Lib "/usr/lib/libc.dylib" Alias "memset" (Destination As Any, ByVal Fill As Byte, ByVal Length As LongPtr) As LongPtr
     #Else
         Private Declare Function CopyMemory Lib "/usr/lib/libc.dylib" Alias "memmove" (Destination As Any, Source As Any, ByVal Length As Long) As Long
+        Private Declare Function FillMemory Lib "/usr/lib/libc.dylib" Alias "memset" (Destination As Any, ByVal Fill As Byte, ByVal Length As Long) As Long
     #End If
 #Else 'Windows
     'https://msdn.microsoft.com/en-us/library/mt723419(v=vs.85).aspx
     #If VBA7 Then
         Private Declare PtrSafe Sub CopyMemory Lib "kernel32" Alias "RtlMoveMemory" (Destination As Any, Source As Any, ByVal Length As LongPtr)
+        Private Declare PtrSafe Sub FillMemory Lib "kernel32" Alias "RtlFillMemory" (Destination As Any, ByVal Length As LongPtr, ByVal Fill As Byte)
     #Else
         Private Declare Sub CopyMemory Lib "kernel32" Alias "RtlMoveMemory" (Destination As Any, Source As Any, ByVal Length As Long)
+        Private Declare Sub FillMemory Lib "kernel32" Alias "RtlFillMemory" (Destination As Any, ByVal Length As Long, ByVal Fill As Byte)
     #End If
 #End If
 
@@ -28,8 +32,10 @@ Sub DemoMain()
     DemoMemObjectSpeed
     Debug.Print String(21, "-") & " Redirection " & String(21, "-")
     DemoInstanceRedirection
-    Debug.Print String(23, "-") & " MemCopy " & String(23, "-")
+    Debug.Print String(37, "-") & " MemCopy " & String(37, "-")
     DemoMemCopySpeed
+    Debug.Print String(30, "-") & " MemFill " & String(30, "-")
+    DemoMemFillSpeed
 End Sub
 
 Private Sub DemoInstanceRedirection()
@@ -222,6 +228,7 @@ Private Sub DemoMemCopySpeed()
                 Exit Do
             End If
         Loop Until slowFactor = 0
+        If slowFactor = 0 Then slowFactor = 1 'For IIf (Div by Zero)
         '
         Debug.Print size, iterations, res1, res2, res3 * slowFactor _
                   , IIf(slowFactor > 1, "extrapolated from " & iterations _
@@ -241,3 +248,71 @@ Private Sub DemoMemCopySpeed()
         DoEvents
     Loop Until iterations = 1
 End Sub
+
+Private Sub DemoMemFillSpeed()
+    Dim t As Double
+    Dim a() As Byte
+    Dim size As Long
+    Dim iterations As Long
+    Dim i As Long
+    Dim dest As LongPtr
+    Dim res1 As Double
+    Dim res2 As Double
+    Dim slowFactor As Long
+    Dim s As String: s = String$(13, "-")
+    Const b As Byte = 255
+    '
+    size = 2
+    iterations = 2 ^ 21
+    Debug.Print "Size", "Iterations", "MemFill", "FillMemory", "Notes"
+    Debug.Print "(Bytes)", "(Count)", "MidB-MemCopy", "(DLL export)"
+    Debug.Print s, s, s, s, s
+    Do
+        ReDim a(0 To size - 1)
+        '
+        dest = VarPtr(a(0))
+        '
+        t = Timer
+        For i = 1 To iterations
+            MemFill dest, size, b
+        Next i
+        res1 = Round(Timer - t, 3)
+        '
+        slowFactor = 10000 'In case API call is too slow
+        Do
+            t = Timer
+            For i = 1 To iterations \ slowFactor
+                #If Mac Then
+                    FillMemory ByVal dest, b, size
+                #Else
+                    FillMemory ByVal dest, size, b
+                #End If
+            Next i
+            res2 = Round(Timer - t, 3)
+            If res2 < 0.1 Then
+                slowFactor = slowFactor \ 10
+            Else
+                Exit Do
+            End If
+        Loop Until slowFactor = 0
+        If slowFactor = 0 Then slowFactor = 1 'For IIf (Div by Zero)
+        '
+        Debug.Print size, iterations, res1, res2 * slowFactor _
+                  , IIf(slowFactor > 1, "extrapolated from " & iterations _
+                  \ slowFactor & " iterations that took " & res2, "")
+        '
+        Const maxLong As Long = 2147483647
+        If CDbl(size) * 2 > maxLong Then
+            If CDbl(size) * 2 - 1 > maxLong Then
+                iterations = 2
+            Else
+                size = CDbl(size) * 2 - 1
+            End If
+        Else
+            size = size * 2
+        End If
+        iterations = iterations / 1.6
+        DoEvents
+    Loop Until iterations = 1
+End Sub
+
