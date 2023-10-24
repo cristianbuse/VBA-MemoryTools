@@ -59,15 +59,19 @@ Private Const MODULE_NAME As String = "LibMemory"
 #If Mac Then
     #If VBA7 Then
         Private Declare PtrSafe Function CopyMemory Lib "/usr/lib/libc.dylib" Alias "memmove" (Destination As Any, Source As Any, ByVal Length As LongPtr) As LongPtr
+        Private Declare PtrSafe Function FillMemory Lib "/usr/lib/libc.dylib" Alias "memset" (Destination As Any, ByVal Fill As Byte, ByVal Length As LongPtr) As LongPtr
     #Else
         Private Declare Function CopyMemory Lib "/usr/lib/libc.dylib" Alias "memmove" (Destination As Any, Source As Any, ByVal Length As Long) As Long
+        Private Declare Function FillMemory Lib "/usr/lib/libc.dylib" Alias "memset" (Destination As Any, ByVal Fill As Byte, ByVal Length As Long) As Long
     #End If
 #Else 'Windows
     'https://msdn.microsoft.com/en-us/library/mt723419(v=vs.85).aspx
     #If VBA7 Then
         Private Declare PtrSafe Sub CopyMemory Lib "kernel32" Alias "RtlMoveMemory" (Destination As Any, Source As Any, ByVal Length As LongPtr)
+        Private Declare PtrSafe Sub FillMemory Lib "kernel32" Alias "RtlFillMemory" (Destination As Any, ByVal Length As LongPtr, ByVal Fill As Byte)
     #Else
         Private Declare Sub CopyMemory Lib "kernel32" Alias "RtlMoveMemory" (Destination As Any, Source As Any, ByVal Length As Long)
+        Private Declare Sub FillMemory Lib "kernel32" Alias "RtlFillMemory" (Destination As Any, ByVal Length As Long, ByVal Fill As Byte)
     #End If
 #End If
 
@@ -997,3 +1001,122 @@ FinalDimension:
     GetArrayDimsCount = dimension - 1
 End Function
 
+'*******************************************************************************
+'Fills target memory with the specified Byte value
+'*******************************************************************************
+Public Sub MemFill(ByVal destinationPtr As LongPtr _
+                 , ByVal bytesCount As LongPtr _
+                 , ByVal fillByte As Byte)
+#If Mac Then
+    FillMemory ByVal destinationPtr, fillByte, bytesCount
+#ElseIf TWINBASIC Or (VBA7 = 0) Then
+    FillMemory ByVal destinationPtr, bytesCount, fillByte
+#Else
+    If bytesCount = 0 Then Exit Sub
+    Const maxSizeSpeedGain As Long = &H100000 'Beyond this use API directly
+    If bytesCount < 0 Or bytesCount > maxSizeSpeedGain Then
+        FillMemory ByVal destinationPtr, bytesCount, fillByte
+        Exit Sub
+    End If
+    '
+    Const maxSizeMidB As Long = &H2000 'Beyond this use MemCopy
+    Dim bytesLeft As Long
+    Dim bytes As Long
+    Dim chunk As Long
+    Static rm As REMOTE_MEMORY
+    If Not rm.isInitialized Then InitRemoteMemory rm
+    '
+    If bytesCount > maxSizeMidB Then
+        bytes = maxSizeMidB
+        bytesLeft = CLng(bytesCount) - maxSizeMidB
+        chunk = maxSizeMidB
+    Else
+        bytes = CLng(bytesCount)
+    End If
+    FillBytes destinationPtr, bytes, fillByte, rm.remoteVT, rm.memValue
+    '
+    Do While bytesLeft > 0
+        If chunk > bytesLeft Then bytes = bytesLeft Else bytes = chunk
+        MemCopy destinationPtr + chunk, destinationPtr, bytes
+        bytesLeft = bytesLeft - bytes
+        chunk = chunk * 2
+    Loop
+#End If
+End Sub
+Private Sub FillBytes(ByVal destinationPtr As LongPtr _
+                    , ByVal bytesCount As Long _
+                    , ByVal fillByte As Byte _
+                    , ByRef vt As Variant _
+                    , ByRef rmValue As Variant)
+    rmValue = destinationPtr
+    If bytesCount > 5 Then
+        Const bstrPrefixSize As Long = 4
+        Dim s As String
+        '
+        vt = vbLong + VT_BYREF
+        rmValue = bytesCount - bstrPrefixSize 'Write BSTR LenB
+        '
+        vt = vbLongPtr
+        rmValue = destinationPtr + bstrPrefixSize 'Move address to byte 5
+        '
+        #If Win64 Then
+            Dim bstrPtr As Currency: vt = vbCurrency
+        #Else
+            Dim bstrPtr As Long:     vt = vbLong
+        #End If
+        bstrPtr = rmValue
+        '
+        vt = vbByte + VT_BYREF
+        rmValue = fillByte 'Copy fill byte to byte 5
+        '
+        vt = vbLongPtr
+        rmValue = VarPtr(s)
+        '
+        #If Win64 Then
+            vt = vbCurrency + VT_BYREF
+        #Else
+            vt = vbLong + VT_BYREF
+        #End If
+        rmValue = bstrPtr 'Redirect to fake BSTR
+        '
+        MidB$(s, 2) = s 'The actual fill
+        rmValue = 0     'Clear BSTR
+        '
+        vt = vbLongPtr
+        rmValue = destinationPtr
+    Else
+        Dim extraByte As Boolean: extraByte = (bytesCount Mod 2) = 1
+    End If
+    '
+    Select Case bytesCount
+    Case 1
+    Case 2, 3
+        vt = vbInteger + VT_BYREF
+        If fillByte And &H80 Then
+            rmValue = fillByte Or (fillByte Xor &H80) * &H100 Or &H8000
+        Else
+            rmValue = fillByte * &H101
+        End If
+        If extraByte Then
+            vt = vbLongPtr
+            rmValue = rmValue + 2
+        End If
+    Case Else
+        vt = vbLong + VT_BYREF
+        If fillByte And &H80 Then
+            rmValue = fillByte * &H10101 Or (fillByte Xor &H80) _
+                    * &H1000000 Or &H80000000
+        Else
+            rmValue = fillByte * &H1010101
+        End If
+        If extraByte Then
+            vt = vbLongPtr
+            rmValue = rmValue + 4
+        End If
+    End Select
+    If extraByte Then
+        vt = vbByte + VT_BYREF
+        rmValue = fillByte
+    End If
+    vt = vbEmpty
+End Sub

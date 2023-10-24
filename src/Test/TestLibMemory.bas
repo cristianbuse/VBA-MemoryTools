@@ -56,6 +56,7 @@ Public Sub RunAllTests()
     TestStringToIntegers
     TestIntegersToString
     TestEmptyArray
+    TestMemFill
     '
     Debug.Print "Finished running tests at " & Now()
 End Sub
@@ -960,3 +961,55 @@ Private Function GetArrayDimsCount(ByRef arr As Variant) As Long
 FinalDimension:
     GetArrayDimsCount = dimension - 1
 End Function
+
+Private Sub TestMemFill()
+    Dim arr() As Byte
+    Dim i As Long, j As Long
+    Const maxTestSize As Long = 2 ^ 24 ' Can increase but will take longer to run
+    Dim size As Long
+    Dim stepSize As Long
+    Dim b As Byte
+    '
+    ReDim arr(1 To maxTestSize)
+    size = 1
+    '
+    For i = 1 To 2 ^ 10
+        b = i Mod 256
+        MemFill VarPtr(arr(1)), i, b
+        For j = 1 To i
+            Debug.Assert arr(j) = b
+        Next j
+        For j = i + 1 To i * 2
+            Debug.Assert arr(j) = 0
+        Next j
+    Next i
+    '
+    stepSize = 2 ^ 12 + 1
+    For i = 2 ^ 14 To 2 ^ 18 Step stepSize
+        b = i Mod 256
+        MemFill VarPtr(arr(1)), i, b
+        For j = 1 To i
+            Debug.Assert arr(j) = b
+        Next j
+        For j = i + 1 To i * 2
+            Debug.Assert arr(j) = 0
+        Next j
+    Next i
+    '
+    b = 5
+    MemFill VarPtr(arr(1)), maxTestSize, b
+    For i = 1 To maxTestSize
+        Debug.Assert arr(i) = b
+    Next i
+    '
+    MemFill VarPtr(arr(1000)), 1000, 7
+    For i = 1 To 999
+        Debug.Assert arr(i) = b
+    Next i
+    For i = 1000 To 1999
+        Debug.Assert arr(i) = 7
+    Next i
+    For i = 2000 To maxTestSize
+        Debug.Assert arr(i) = b
+    Next i
+End Sub
