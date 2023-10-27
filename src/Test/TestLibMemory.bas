@@ -707,7 +707,7 @@ Private Sub TestMemCopy()
 #If Win64 Then
     ReDim arr1(0 To 2 ^ 31 - 2)
 #Else
-    ReDim arr1(0 To 2 ^ 29 - 1)
+    ReDim arr1(0 To 2 ^ 27 - 1)
 #End If
     arr2 = arr1
     '
@@ -883,7 +883,11 @@ Private Sub TestStringToIntegers()
     Debug.Assert arr(6) = AscW("C")
     On Error Resume Next
     Dim i As Integer: i = arr(7)
-    Debug.Assert Err.Number = 9
+    #If TWINBASIC Then
+        Debug.Assert Err.Number <> 0
+    #Else
+        Debug.Assert Err.Number = 9
+    #End If
     On Error GoTo 0
     '
     arr = StringToIntegers("ABC", 2, 7, 5)

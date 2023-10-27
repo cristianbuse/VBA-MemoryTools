@@ -180,16 +180,20 @@ End Sub
 'Read/Write a Byte from/to memory
 '*******************************************************************************
 Public Property Get MemByte(ByVal memAddress As LongPtr) As Byte
-    #If Mac Or TWINBASIC Or (VBA7 = 0) Then
+    #If Mac Or (VBA7 = 0) Then
         CopyMemory MemByte, ByVal memAddress, 1
+    #ElseIf TWINBASIC Then
+        GetMem1 memAddress, MemByte
     #Else
         Static rm As REMOTE_MEMORY
         RemoteAssign rm, memAddress, rm.remoteVT, vbByte + VT_BYREF, MemByte, rm.memValue
     #End If
 End Property
 Public Property Let MemByte(ByVal memAddress As LongPtr, ByVal newValue As Byte)
-    #If Mac Or TWINBASIC Or (VBA7 = 0) Then
+    #If Mac Or (VBA7 = 0) Then
         CopyMemory ByVal memAddress, newValue, 1
+    #ElseIf TWINBASIC Then
+        PutMem1 memAddress, newValue
     #Else
         Static rm As REMOTE_MEMORY
         RemoteAssign rm, memAddress, rm.remoteVT, vbByte + VT_BYREF, rm.memValue, newValue
@@ -200,16 +204,20 @@ End Property
 'Read/Write 2 Bytes (Integer) from/to memory
 '*******************************************************************************
 Public Property Get MemInt(ByVal memAddress As LongPtr) As Integer
-    #If Mac Or TWINBASIC Or (VBA7 = 0) Then
+    #If Mac Or (VBA7 = 0) Then
         CopyMemory MemInt, ByVal memAddress, 2
+    #ElseIf TWINBASIC Then
+        GetMem2 memAddress, MemInt
     #Else
         Static rm As REMOTE_MEMORY
         RemoteAssign rm, memAddress, rm.remoteVT, vbInteger + VT_BYREF, MemInt, rm.memValue
     #End If
 End Property
 Public Property Let MemInt(ByVal memAddress As LongPtr, ByVal newValue As Integer)
-    #If Mac Or TWINBASIC Or (VBA7 = 0) Then
+    #If Mac Or (VBA7 = 0) Then
         CopyMemory ByVal memAddress, newValue, 2
+    #ElseIf TWINBASIC Then
+        PutMem2 memAddress, newValue
     #Else
         Static rm As REMOTE_MEMORY
         RemoteAssign rm, memAddress, rm.remoteVT, vbInteger + VT_BYREF, rm.memValue, newValue
@@ -240,16 +248,20 @@ End Property
 'Read/Write 4 Bytes (Long) from/to memory
 '*******************************************************************************
 Public Property Get MemLong(ByVal memAddress As LongPtr) As Long
-    #If Mac Or TWINBASIC Or (VBA7 = 0) Then
+    #If Mac Or (VBA7 = 0) Then
         CopyMemory MemLong, ByVal memAddress, 4
+    #ElseIf TWINBASIC Then
+        GetMem4 memAddress, MemLong
     #Else
         Static rm As REMOTE_MEMORY
         RemoteAssign rm, memAddress, rm.remoteVT, vbLong + VT_BYREF, MemLong, rm.memValue
     #End If
 End Property
 Public Property Let MemLong(ByVal memAddress As LongPtr, ByVal newValue As Long)
-    #If Mac Or TWINBASIC Or (VBA7 = 0) Then
+    #If Mac Or (VBA7 = 0) Then
         CopyMemory ByVal memAddress, newValue, 4
+    #ElseIf TWINBASIC Then
+        PutMem4 memAddress, newValue
     #Else
         Static rm As REMOTE_MEMORY
         RemoteAssign rm, memAddress, rm.remoteVT, vbLong + VT_BYREF, rm.memValue, newValue
@@ -279,7 +291,7 @@ End Property
 '*******************************************************************************
 'Read/Write 8 Bytes (LongLong) from/to memory
 '*******************************************************************************
-#If Win64 Then
+#If Win64 Or TWINBASIC Then 'TB supports LongLong (8 bytes) in both x32 and x64
 Public Property Get MemLongLong(ByVal memAddress As LongLong) As LongLong
     #If Mac Or TWINBASIC Or (VBA7 = 0) Then
         CopyMemory MemLongLong, ByVal memAddress, 8
@@ -330,8 +342,10 @@ End Sub
 '   extra stack frame! Performance was chosen over code repetition!
 '*******************************************************************************
 Public Property Get MemLongPtr(ByVal memAddress As LongPtr) As LongPtr
-    #If Mac Or TWINBASIC Or (VBA7 = 0) Then
+    #If Mac Or (VBA7 = 0) Then
         CopyMemory MemLongPtr, ByVal memAddress, PTR_SIZE
+    #ElseIf TWINBASIC Then
+        GetMemPtr memAddress, MemLongPtr
     #ElseIf Win64 Then
         Static rm As REMOTE_MEMORY: rm.memValue = memAddress
         MemLongPtr = ByRefLongLong(rm, rm.remoteVT, rm.memValue)
@@ -341,8 +355,10 @@ Public Property Get MemLongPtr(ByVal memAddress As LongPtr) As LongPtr
     #End If
 End Property
 Public Property Let MemLongPtr(ByVal memAddress As LongPtr, ByVal newValue As LongPtr)
-    #If Mac Or TWINBASIC Or (VBA7 = 0) Then
+    #If Mac Or (VBA7 = 0) Then
         CopyMemory ByVal memAddress, newValue, PTR_SIZE
+    #ElseIf TWINBASIC Then
+        PutMemPtr memAddress, newValue
     #ElseIf Win64 Then
         Static rmSrc As REMOTE_MEMORY: rmSrc.memValue = VarPtr(newValue)
         Static rmDest As REMOTE_MEMORY: rmDest.memValue = memAddress
@@ -357,16 +373,20 @@ End Property
 'Read/Write 8 Bytes (Currency) from/to memory
 '*******************************************************************************
 Public Property Get MemCur(ByVal memAddress As LongPtr) As Currency
-    #If Mac Or TWINBASIC Or (VBA7 = 0) Then
+    #If Mac Or (VBA7 = 0) Then
         CopyMemory MemCur, ByVal memAddress, 8
+    #ElseIf TWINBASIC Then
+        GetMem8 memAddress, MemCur
     #Else
         Static rm As REMOTE_MEMORY
         RemoteAssign rm, memAddress, rm.remoteVT, vbCurrency + VT_BYREF, MemCur, rm.memValue
     #End If
 End Property
 Public Property Let MemCur(ByVal memAddress As LongPtr, ByVal newValue As Currency)
-    #If Mac Or TWINBASIC Or (VBA7 = 0) Then
+    #If Mac Or (VBA7 = 0) Then
         CopyMemory ByVal memAddress, newValue, 8
+    #ElseIf TWINBASIC Then
+        PutMem8 memAddress, newValue
     #Else
         Static rm As REMOTE_MEMORY
         RemoteAssign rm, memAddress, rm.remoteVT, vbCurrency + VT_BYREF, rm.memValue, newValue
@@ -421,7 +441,11 @@ Public Function MemObj(ByVal memAddress As LongPtr) As Object
     '
     #If Mac Or TWINBASIC Or (VBA7 = 0) Then
         Dim obj As Object
-        CopyMemory obj, memAddress, PTR_SIZE
+        #If TWINBASIC Then
+            PutMemPtr ByVal VarPtr(obj), memAddress
+        #Else
+            CopyMemory obj, memAddress, PTR_SIZE
+        #End If
         Set MemObj = obj
         memAddress = 0 'We don't just use 0 (below) because we need 0& or 0^
         CopyMemory obj, memAddress, PTR_SIZE
@@ -1016,7 +1040,7 @@ Public Sub MemFill(ByVal destinationPtr As LongPtr _
                  , ByVal fillByte As Byte)
 #If Mac Then
     FillMemory ByVal destinationPtr, fillByte, bytesCount
-#ElseIf TWINBASIC Or (VBA7 = 0) Then
+#ElseIf (VBA7 = 0) Then
     FillMemory ByVal destinationPtr, bytesCount, fillByte
 #Else
     If bytesCount = 0 Then Exit Sub
