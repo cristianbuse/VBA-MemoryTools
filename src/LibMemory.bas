@@ -945,7 +945,6 @@ Public Function EmptyArray(ByVal numberOfDimensions As Long _
     #Else
         Const safeArraySize = 4
     #End If
-    Const FADF_HAVEVARTYPE As Long = &H80
     Const fFeaturesHi As Long = FADF_HAVEVARTYPE * &H10000
     Dim i As Long
     '
@@ -974,11 +973,7 @@ End Function
 Public Sub UpdateLBound(ByRef arr As Variant _
                       , ByVal dimension As Long _
                       , ByVal newLB As Long)
-    #If Win64 Then
-        Const bOffset As Long = 28
-    #Else
-        Const bOffset As Long = 20
-    #End If
+    Const bOffset As Long = rgsaboundOffset + 4
     Const methodName As String = "UpdateLBound"
     Const maxL As Long = &H7FFFFFFF
     Dim dimensionCount As Long: dimensionCount = GetArrayDimsCount(arr)
