@@ -791,58 +791,12 @@ End Sub
 
 '*******************************************************************************
 'Copy a param array to another array of Variants while preserving ByRef elements
+'If the paramarray name is 'args' then the call needs to look like this:
+'   CloneParamArray Not Not args, outArray
 '*******************************************************************************
-Public Sub CloneParamArray(ByRef firstElem As Variant _
-                         , ByVal elemCount As Long _
-                         , ByRef outArray() As Variant)
-    ReDim outArray(0 To elemCount - 1)
-    MemCopy VarPtr(outArray(0)), VarPtr(firstElem), VARIANT_SIZE * elemCount
-    '
-    Static sArr As SAFEARRAY_1D 'Fake array of VarTypes (Integers)
-    Static rmArr As REMOTE_MEMORY
-    '
-    If Not rmArr.isInitialized Then
-        With sArr
-            .cDims = 1
-            .cLocks = 1
-            .fFeatures = FADF_HAVEVARTYPE
-            .cbElements = INT_SIZE
-        End With
-        InitRemoteMemory rmArr
-        rmArr.memValue = VarPtr(sArr)
-    End If
-    sArr.rgsabound0.cElements = elemCount * VT_SPACING
-    sArr.pvData = VarPtr(outArray(0))
-    '
-    FixByValElements outArray, rmArr, rmArr.remoteVT
-End Sub
-
-'*******************************************************************************
-'Utility for 'CloneParamArray' - avoid deallocation on elements passed ByVal
-'e.g. if original ParamArray has a pointer to a BSTR then safely clear the copy
-'*******************************************************************************
-Private Sub FixByValElements(ByRef arr() As Variant _
-                           , ByRef rmArr As REMOTE_MEMORY _
-                           , ByRef vtArr As Variant)
-    Dim i As Long
-    Dim v As Variant
-    Dim vtIndex As Long: vtIndex = 0
-    Dim vt As VbVarType
-    '
-    vtArr = vbArray + vbInteger
-    For i = 0 To UBound(arr)
-        vt = rmArr.memValue(vtIndex)
-        If (vt And VT_BYREF) = 0 Then
-            If (vt And vbArray) = vbArray Or vt = vbObject Or vt = vbString _
-            Or vt = vbDataObject Or vt = vbUserDefinedType Then
-                If vt = vbObject Then Set v = arr(i) Else v = arr(i)
-                rmArr.memValue(vtIndex) = vbEmpty 'Avoid deallocation
-                If vt = vbObject Then Set arr(i) = v Else arr(i) = v
-            End If
-        End If
-        vtIndex = vtIndex + VT_SPACING
-    Next i
-    vtArr = vbEmpty
+Public Sub CloneParamArray(ByVal paramPtr As LongPtr, ByRef out() As Variant)
+    Static rm As REMOTE_MEMORY: If Not rm.isInitialized Then InitRemoteMemory rm
+    RemoteAssign rm, paramPtr, rm.remoteVT, vbArray + vbVariant, out, rm.memValue
 End Sub
 
 '*******************************************************************************

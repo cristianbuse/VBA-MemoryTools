@@ -839,9 +839,8 @@ Private Sub TestCloneParamArray()
 End Sub
 Private Sub TestParamArray(ParamArray args() As Variant)
     Dim arr() As Variant
-    CloneParamArray firstElem:=args(0) _
-                  , elemCount:=UBound(args) + 1 _
-                  , outArray:=arr
+    CloneParamArray Not Not args, arr
+    
     LetSet(arr(0)) = 2
     LetSet(arr(1)) = 3
     LetSet(arr(2)) = 4
