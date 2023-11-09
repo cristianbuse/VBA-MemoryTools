@@ -672,6 +672,7 @@ Public Sub MemCopy(ByVal destinationPtr As LongPtr _
     If Not rmArrSrc.isInitialized Then
         With sArrByte
             .cDims = 1
+            .cLocks = 1
             .fFeatures = FADF_HAVEVARTYPE
             .cbElements = BYTE_SIZE
         End With
@@ -803,6 +804,7 @@ Public Sub CloneParamArray(ByRef firstElem As Variant _
     If Not rmArr.isInitialized Then
         With sArr
             .cDims = 1
+            .cLocks = 1
             .fFeatures = FADF_HAVEVARTYPE
             .cbElements = INT_SIZE
         End With
@@ -884,6 +886,7 @@ Public Function StringToIntegers(ByRef s As String _
         InitRemoteMemory rm
         With sArr
             .cDims = 1
+            .cLocks = 1
             .fFeatures = FADF_HAVEVARTYPE
             .cbElements = INT_SIZE
         End With
@@ -923,6 +926,7 @@ Public Function IntegersToString(ByRef ints() As Integer _
         InitRemoteMemory rm
         With sArr
             .cDims = 1
+            .cLocks = 1
             .fFeatures = FADF_HAVEVARTYPE
             .cbElements = BYTE_SIZE
             .rgsabound0.lLbound = 0
