@@ -131,7 +131,33 @@ Public Type SAFEARRAY_1D
     #End If
     rgsabound0 As SAFEARRAYBOUND
 End Type
-Private Const FADF_HAVEVARTYPE As Long = &H80
+Public Enum SAFEARRAY_FEATURES
+    FADF_AUTO = &H1
+    FADF_STATIC = &H2
+    FADF_EMBEDDED = &H4
+    FADF_FIXEDSIZE = &H10
+    FADF_RECORD = &H20
+    FADF_HAVEIID = &H40
+    FADF_HAVEVARTYPE = &H80
+    FADF_BSTR = &H100
+    FADF_UNKNOWN = &H200
+    FADF_DISPATCH = &H400
+    FADF_VARIANT = &H800
+    FADF_RESERVED = &HF008
+End Enum
+Public Enum SAFEARRAY_OFFSETS
+    cDimsOffset = 0
+    fFeaturesOffset = 2
+    cbElementsOffset = 4
+    cLocksOffset = 8
+    #If Win64 Then
+        pvDataOffset = 16
+        rgsaboundOffset = 24
+    #Else
+        pvDataOffset = 12
+        rgsaboundOffset = 16
+    #End If
+End Enum
 
 '*******************************************************************************
 'Returns an initialized (linked) REMOTE_MEMORY struct
