@@ -158,8 +158,8 @@ Public Enum SAFEARRAY_OFFSETS
     #Else
         pvDataOffset = 12
     #End If
-    rgsaboundOffsset = pvDataOffset + PTR_SIZE
-    rgsabound0_cElementsOffset = rgsaboundOffsset
+    rgsaboundOffset = pvDataOffset + PTR_SIZE
+    rgsabound0_cElementsOffset = rgsaboundOffset
     rgsabound0_lLboundOffset = rgsabound0_cElementsOffset + LONG_SIZE
 End Enum
 
