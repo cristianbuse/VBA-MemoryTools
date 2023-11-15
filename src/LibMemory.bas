@@ -84,13 +84,16 @@ Private Const MODULE_NAME As String = "LibMemory"
 #If Win64 Then
     Public Const PTR_SIZE As Long = 8
     Public Const VARIANT_SIZE As Long = 24
+    Public Const NULL_PTR As LongLong = 0^
 #Else
     Public Const PTR_SIZE As Long = 4
     Public Const VARIANT_SIZE As Long = 16
+    Public Const NULL_PTR As Long = 0&
 #End If
 
 Private Const BYTE_SIZE As Long = 1
 Private Const INT_SIZE As Long = 2
+Private Const LONG_SIZE As Long = 4
 Private Const VT_SPACING As Long = VARIANT_SIZE / INT_SIZE 'VarType spacing in an array of Variants
 
 #If Win64 Then
@@ -152,11 +155,12 @@ Public Enum SAFEARRAY_OFFSETS
     cLocksOffset = 8
     #If Win64 Then
         pvDataOffset = 16
-        rgsaboundOffset = 24
     #Else
         pvDataOffset = 12
-        rgsaboundOffset = 16
     #End If
+    rgsaboundOffsset = pvDataOffset + PTR_SIZE
+    rgsabound0_cElementsOffset = rgsaboundOffsset
+    rgsabound0_lLboundOffset = rgsabound0_cElementsOffset + LONG_SIZE
 End Enum
 
 '*******************************************************************************
@@ -463,7 +467,7 @@ End Property
 'Dereference an object by it's pointer
 '*******************************************************************************
 Public Function MemObj(ByVal memAddress As LongPtr) As Object
-    If memAddress = 0 Then Exit Function
+    If memAddress = NULL_PTR Then Exit Function
     '
     #If Mac Or TWINBASIC Or (VBA7 = 0) Then
         Dim obj As Object
@@ -473,8 +477,7 @@ Public Function MemObj(ByVal memAddress As LongPtr) As Object
             CopyMemory obj, memAddress, PTR_SIZE
         #End If
         Set MemObj = obj
-        memAddress = 0 'We don't just use 0 (below) because we need 0& or 0^
-        CopyMemory obj, memAddress, PTR_SIZE
+        CopyMemory obj, NULL_PTR, PTR_SIZE
     #Else
         Static rm As REMOTE_MEMORY: rm.memValue = memAddress
         If Not rm.isInitialized Then InitRemoteMemory rm
@@ -530,11 +533,11 @@ Public Sub RedirectInstance(ByVal funcReturnPtr As LongPtr _
     newPtr = ObjPtr(GetDefaultInterface(targetInstance))
     '
     'Validate Input
-    If currentInstance Is Nothing Or targetInstance Is Nothing Then
+    If originalPtr = NULL_PTR Or newPtr = NULL_PTR Then
         Err.Raise 91, methodName, "Object not set"
     ElseIf MemLongPtr(originalPtr) <> MemLongPtr(newPtr) Then 'Faster to compare vTables than to compare TypeName(s)
         Err.Raise 5, methodName, "Expected same VB class"
-    ElseIf funcReturnPtr = 0 Then
+    ElseIf funcReturnPtr = NULL_PTR Then
         Err.Raise 5, methodName, "Missing Function Return Pointer"
     End If
     '
@@ -549,9 +552,9 @@ Public Sub RedirectInstance(ByVal funcReturnPtr As LongPtr _
     #End If
     '
     swapAddress = FindSwapAddress(funcReturnPtr, memOffsetNonVariant, originalPtr)
-    If swapAddress = 0 Then
+    If swapAddress = NULL_PTR Then
         swapAddress = FindSwapAddress(funcReturnPtr, memOffsetVariant, originalPtr)
-        If swapAddress = 0 Then
+        If swapAddress = NULL_PTR Then
             Err.Raise 5, methodName, "Invalid input or not called " _
             & "from class Function or vbArray + vbString function return type"
         End If
@@ -590,10 +593,10 @@ Private Function FindSwapAddress(ByVal funcReturnPtr As Long _
     startAddr = startAddr - (startAddr Mod PTR_SIZE)
     '
     swapAddr = GetSwapIndirectAddress(startAddr)
-    If swapAddr = 0 Then
+    If swapAddr = NULL_PTR Then
         'Adjust mem alignment for Currency/Date/Double function return type
         swapAddr = GetSwapIndirectAddress(startAddr + PTR_SIZE)
-        If swapAddr = 0 Then Exit Function
+        If swapAddr = NULL_PTR Then Exit Function
     End If
     If MemLongPtr(swapAddr) = originalPtr Then
         FindSwapAddress = swapAddr
