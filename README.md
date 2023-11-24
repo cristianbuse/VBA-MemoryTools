@@ -3,19 +3,25 @@ Native memory manipulation in VBA.
 
 There is an issue with the speed of API calls in **VBA7**. This is very well tested and explained in [this Code Review question](https://codereview.stackexchange.com/questions/270258/evaluate-performance-of-dll-calls-from-vba).
 
-This library overcomes the speed issues for reading and writing from and into memory by using a native approach - see related [CR question](https://codereview.stackexchange.com/questions/252659/fast-native-memory-manipulation-in-vba).
+This library overcomes the speed issues for reading and writing from and into memory by using a native approach.
 
-Moreover, this library exposes some useful utilities and wrappers to make it easier to manipulate memory. For **Mac**, **TwinBasic** and **VBA6** (and prior) this library simply uses wrapped API calls as there is no speed benefit in using the native approach.
+This library exposes some useful utilities and wrappers to make it easier to manipulate memory. For **Mac**, **TwinBasic** and **VBA6** (and prior) this library simply uses wrapped API calls as there is no speed benefit in using the native approach.
 
-Copying a byte for 10,000 times on Windows with VBA7 x64 using ```RtlMoveMemory``` API takes around 10 seconds while the native By Ref approach takes only around 16 milliseconds for the same number of iterations. So, the speed gain is 600x is some cases.
+Copying a byte for 10,000 times on Windows with VBA7 x64 using ```RtlMoveMemory``` API takes around 10 seconds while the native struct approach takes only around 8 milliseconds for the same number of iterations. So, the speed gain is over 1000x is some cases.
 
 ## Implementation
-Same technique used [here](https://codereview.stackexchange.com/a/249125/227582) was implemented. A remote ```Variant``` allows the changing of the ```VarType``` on a second ```Variant``` which in turn reads memory remotely as well (has ```VT_BYREF``` flag set). A single CopyMemory API call is done when initializing the base REMOTE_MEMORY structure (see ```MemIntAPI```). Subsequent usage relies on native VBA code only.
+
+**Prior to 24-Nov-2023** (see [5058e3333c](https://github.com/cristianbuse/VBA-MemoryTools/tree/5058e3333c5695291984cdfd2750e3ff61f27823)) this library used a 'Variant ByRef' approach - see related [CR question](https://codereview.stackexchange.com/questions/252659/fast-native-memory-manipulation-in-vba) which describes the technique (initailly used [here](https://codereview.stackexchange.com/a/249125/227582)).
+
+**Starting 24-Nov-2023** this library uses a ```MEMORY_ACCESSOR``` type/struct that allows acces to memory via UDT arrays with faster speeds (x2 at least).
+
+A single CopyMemory API call is used when initializing the base ```MEMORY_ACCESSOR``` structure (see ```InitMemoryAccessor```). Subsequent usage relies on native VBA calls only.
+The ```MEMORY_ACCESSOR``` contains a ```SAFEARRAY``` structure and an ```ArrayAccessor``` structure. Once initialized, all the arrays in the ```ArrayAccessor``` will point to the data defined in the corresponding ```SAFEARRAY``` structure, thus adapting in real time to changes of address, number of elements or element size. All arrays are locked and are safe i.e. no memory pointed by these arrays gets deallocated.
 
 ## Use
-```MemCopy``` - a faster alternative to ```CopyMemory``` (for VBA7) without API calls on Windows. Uses a combination of fake BSTR and SAFEARRAY structures to copy memory. Only defaults to ```CopyMemory``` when the API is faster.
-```MemFill``` - a faster alternative to ```FillMemory``` (for VBA7) without API calls on Windows. Uses a fake BSTR and a call to ```MidB$``` to fill memory. Only defaults to ```FillMemory``` when the API is faster.
-```MemZero``` - wrapper for ```MemFill``` with byte value set to zero.
+- ```MemCopy``` - a faster alternative to ```CopyMemory``` (for VBA7) without API calls on Windows. Only defaults to ```CopyMemory``` when the API is faster.  
+- ```MemFill``` - a faster alternative to ```FillMemory``` (for VBA7) without API calls on Windows. Uses a fake BSTR and a call to ```MidB$``` to fill memory up to a certain size. Only defaults to ```FillMemory``` when the API is faster.  
+- ```MemZero``` - wrapper for ```MemFill``` with byte value set to zero.
 
 10 parametric properties (Get/Let) are exposed:
  01. ```MemByte```
@@ -31,7 +37,7 @@ Same technique used [here](https://codereview.stackexchange.com/a/249125/227582)
 
 A few other utilities:
  - ```GetDefaultInterface```
- - ```MemObject``` (dereferences a pointer and returns an Object)
+ - ```MemObj``` (dereferences a pointer and returns an Object)
  - ```UnsignedAddition```
  - ```VarPtrArr``` (```VarPtr``` for arrays)
  - ```ArrPtr``` (as ```ObjPtr``` is for objects and ```StrPtr``` is for strings) - returns the pointer to the underlying SAFEARRAY structure

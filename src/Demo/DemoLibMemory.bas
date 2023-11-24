@@ -273,17 +273,16 @@ Private Sub DemoMemCopySpeed()
     Dim dest As LongPtr
     Dim res1 As Double
     Dim res2 As Double
-    Dim res3 As Double
     Dim slowFactor As Long
     Dim s As String: s = String$(13, "-")
     '
     size = 2
     iterations = 2 ^ 21
     Debug.Print AlignCenter("Size"), AlignCenter("Iterations"), AlignCenter("MemCopy") _
-              , AlignCenter("MemCopy"), AlignCenter("CopyMemory"), AlignCenter("Notes")
-    Debug.Print AlignCenter("(Bytes)"), AlignCenter("(Count)"), AlignCenter("(SAFEARRAY)") _
-              , AlignCenter("(BSTR)"), AlignCenter("(DLL export)")
-    Debug.Print s, s, s, s, s, s
+              , AlignCenter("CopyMemory"), AlignCenter("Notes")
+    Debug.Print AlignCenter("(Bytes)"), AlignCenter("(Count)"), AlignCenter("(ACCESSOR)") _
+              , AlignCenter("(DLL export)")
+    Debug.Print s, s, s, s, s
     Do
         ReDim a1(0 To size - 1)
         ReDim a2(0 To size - 1)
@@ -297,21 +296,14 @@ Private Sub DemoMemCopySpeed()
         Next i
         res1 = Round(Timer - t, 3)
         '
-        If size > 4 Then a2(3) = 128 'Force copy via BSTR
-        t = Timer
-        For i = 1 To iterations
-            MemCopy dest, src, size
-        Next i
-        res2 = Round(Timer - t, 3)
-        '
         slowFactor = 10000 'In case API call is too slow
         Do
             t = Timer
             For i = 1 To iterations \ slowFactor
                 CopyMemory ByVal dest, ByVal src, size
             Next i
-            res3 = Round(Timer - t, 3)
-            If res3 < 0.1 Then
+            res2 = Round(Timer - t, 3)
+            If res2 < 0.1 Then
                 slowFactor = slowFactor \ 10
             Else
                 Exit Do
@@ -322,11 +314,10 @@ Private Sub DemoMemCopySpeed()
         Debug.Print AlignRight(Format$(size, "#,##0")) _
                   , AlignRight(Format$(iterations, "#,##0")) _
                   , AlignRight(Format$(res1, "#,##0.000")) _
-                  , AlignRight(Format$(res2, "#,##0.000")) _
-                  , AlignRight(Format$(res3 * slowFactor, "#,##0.000")) _
+                  , AlignRight(Format$(res2 * slowFactor, "#,##0.000")) _
                   , IIf(slowFactor > 1, "(extrapolated from " _
                   & Format$(iterations \ slowFactor, "#,##0") _
-                  & " iterations that took " & res3 & " seconds)", "")
+                  & " iterations that took " & res2 & " seconds)", "")
         '
         Const maxLong As Long = 2147483647
         If CDbl(size) * 2 > maxLong Then

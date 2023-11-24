@@ -36,25 +36,7 @@ Option Private Module
 ''  - the host Application (Excel, Word, AutoCAD etc.)
 ''  - the operating system (Mac, Windows)
 ''  - application environment (x32, x64)
-'' A single API call to RtlMoveMemory API is needed to start the remote
-''  referencing mechanism. Inside a REMOTE_MEMORY type, a 'remoteVT' Variant is
-''  used to manipulate the VarType of the 'memValue' that we want to read/write.
-''  The remote manipulation of the VarType is done by setting the VT_BYREF flag
-''  on the 'remoteVT' Variant. This is done by using a CopyMemory API but only
-''  once per initialization of the REMOTE_MEMORY variable (see MemIntAPI). Note
-''  that besides the Static REMOTE_MEMORY used in MemIntAPI all the other memory
-''  structs are initialized through InitRemoteMemory with no API calls. Once the
-''  flag is set, the 'remoteVT' is used to change the VarType of the first
-''  Variant just by using a native VBA assignment operation (needs a utility
-''  method for correct redirection). In order for the 'memValue' Variant to
-''  point to aspecific memory address, 2 steps are needed:
-''   1) the required address is assigned to the 'memValue' Variant
-''   2) the VarType of the 'memValue' Variant is remotely changed via the
-''      'remoteVT' Variant (must be done ByRef in any utility method)
 '*******************************************************************************
-
-'Used for raising errors
-Private Const MODULE_NAME As String = "LibMemory"
 
 #If Mac Then
     #If VBA7 Then
@@ -63,15 +45,21 @@ Private Const MODULE_NAME As String = "LibMemory"
     #Else
         Private Declare Function CopyMemory Lib "/usr/lib/libc.dylib" Alias "memmove" (Destination As Any, Source As Any, ByVal Length As Long) As Long
         Private Declare Function FillMemory Lib "/usr/lib/libc.dylib" Alias "memset" (Destination As Any, ByVal Fill As Byte, ByVal Length As Long) As Long
+        Public Declare Function MemCopy Lib "/usr/lib/libc.dylib" Alias "memmove" (ByVal Destination As Long, ByVal Source As Long, ByVal Length As Long) As Long
     #End If
 #Else 'Windows
     'https://msdn.microsoft.com/en-us/library/mt723419(v=vs.85).aspx
     #If VBA7 Then
         Private Declare PtrSafe Sub CopyMemory Lib "kernel32" Alias "RtlMoveMemory" (Destination As Any, Source As Any, ByVal Length As LongPtr)
         Private Declare PtrSafe Sub FillMemory Lib "kernel32" Alias "RtlFillMemory" (Destination As Any, ByVal Length As LongPtr, ByVal Fill As Byte)
+        #If TWINBASIC Then
+            Public Declare PtrSafe Sub MemCopy Lib "kernel32" Alias "RtlMoveMemory" (ByVal Destination As LongPtr, ByVal Source As LongPtr, ByVal Length As LongPtr)
+        #End If
     #Else
         Private Declare Sub CopyMemory Lib "kernel32" Alias "RtlMoveMemory" (Destination As Any, Source As Any, ByVal Length As Long)
         Private Declare Sub FillMemory Lib "kernel32" Alias "RtlFillMemory" (Destination As Any, ByVal Length As Long, ByVal Fill As Byte)
+        Public Declare Sub MemCopy Lib "kernel32" Alias "RtlMoveMemory" (ByVal Destination As Long, ByVal Source As Long, ByVal Length As Long)
+        Public Declare Sub MemFill Lib "kernel32" Alias "RtlFillMemory" (ByVal Destination As Long, ByVal Length As Long, ByVal Fill As Byte)
     #End If
 #End If
 
@@ -105,12 +93,6 @@ Private Const VT_SPACING As Long = VARIANT_SIZE / INT_SIZE 'VarType spacing in a
     Public Const vbLongLong As Long = 20 'Useful in Select Case logic
     Public Const vbLongPtr As Long = vbLong
 #End If
-
-Public Type REMOTE_MEMORY
-    memValue As Variant
-    remoteVT As Variant 'Will be linked to the first 2 bytes of 'memValue' - see 'InitRemoteMemory'
-    isInitialized As Boolean 'In case state is lost
-End Type
 
 'https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-oaut/3fe7db9f-5803-4dc4-9d14-5425d3f5461f
 'https://docs.microsoft.com/en-us/windows/win32/api/oaidl/ns-oaidl-variant?redirectedfrom=MSDN
@@ -164,46 +146,91 @@ Public Enum SAFEARRAY_OFFSETS
 End Enum
 
 '*******************************************************************************
-'Returns an initialized (linked) REMOTE_MEMORY struct
-'Links .remoteVt to the first 2 bytes of .memValue
+'A new way to copy memory via UDTs - faster than using ByRef Variant
+'Last commit that used ByRef Variant:
+'https://github.com/cristianbuse/VBA-MemoryTools/tree/5058e3333c
 '*******************************************************************************
-Public Sub InitRemoteMemory(ByRef rm As REMOTE_MEMORY)
-    rm.remoteVT = VarPtr(rm.memValue)
-    MemIntAPI(VarPtr(rm.remoteVT)) = vbInteger + VT_BYREF
-    rm.isInitialized = True
-End Sub
+Private Type Byte8:   l As Long:     r As Long:     End Type
+Private Type Byte16:  l As Byte8:    r As Byte8:    End Type
+Private Type Byte32:  l As Byte16:   r As Byte16:   End Type
+Private Type Byte64:  l As Byte32:   r As Byte32:   End Type
+Private Type Byte128: l As Byte64:   r As Byte64:   End Type
+Private Type Byte256: l As Byte128:  r As Byte128:  End Type
+Private Type Byte512: l As Byte256:  r As Byte256:  End Type
+Private Type Byte1K:  l As Byte512:  r As Byte512:  End Type
+Private Type Byte2K:  l As Byte1K:   r As Byte1K:   End Type
+Private Type Byte4K:  l As Byte2K:   r As Byte2K:   End Type
+Private Type Byte8K:  l As Byte4K:   r As Byte4K:   End Type
+Private Type Byte16K: l As Byte8K:   r As Byte8K:   End Type
+Private Type Byte32K: l As Byte16K:  r As Byte16K:  End Type
+Private Type ArrayAccessor
+    'For working directly with data types
+    dPtr() As LongPtr:  dByte() As Byte:  dBool() As Boolean
+    dInt() As Integer:  dLong() As Long:  dSng()  As Single
+    dCur() As Currency: dDate() As Date:  dDbl()  As Double
+    dVar() As Variant:  dObj() As Object: dStr() As String
+#If Win64 Then
+    dLongLong() As LongLong
+#End If
+    'For copying memory without overlap (faster than String)
+    b16()  As Byte16:  b32()  As Byte32:  b64()  As Byte64
+    b128() As Byte128: b256() As Byte256: b512() As Byte512
+    b1K()  As Byte1K:  b2K()  As Byte2K:  b4K()  As Byte4K
+    b8K()  As Byte8K:  b16K() As Byte16K: b32K() As Byte32K
+    'For copying memory with overlap (slower than Byte)
+    s16()  As String * 8:    s32()  As String * 16:   s64()  As String * 32
+    s128() As String * 64:   s256() As String * 128:  s512() As String * 256
+    s1K()  As String * 512:  s2K()  As String * 1024: s4K()  As String * 2048
+    s8K()  As String * 4096: s16K() As String * 8192: s32K() As String * 16384
+End Type
+Private Type ByteInfo
+    bit(0 To 7) As Boolean
+End Type
+Public Type MEMORY_ACCESSOR
+    isSet As Boolean
+    ac As ArrayAccessor
+    sa As SAFEARRAY_1D
+End Type
 
 '*******************************************************************************
-'The only method in this module that uses CopyMemory!
-'Assures that InitRemoteMemory can link the Var Type for new structs
+'Returns an initialized (linked) MEMORY_ACCESSOR struct
+'Links all arrays under 'ac' accessor to the 'sa' SAFEARRAY
 '*******************************************************************************
-Private Property Let MemIntAPI(ByVal memAddress As LongPtr, ByVal newValue As Integer)
-    Static rm As REMOTE_MEMORY
-    If Not rm.isInitialized Then 'Link .remoteVt to .memValue's first 2 bytes
-        rm.remoteVT = VarPtr(rm.memValue)
-        CopyMemory rm.remoteVT, vbInteger + VT_BYREF, 2
-        rm.isInitialized = True
+Public Sub InitMemoryAccessor(ByRef maToInit As MEMORY_ACCESSOR)
+    If maToInit.isSet Then Exit Sub
+    '
+    Static ma As MEMORY_ACCESSOR
+    Dim saPtr As LongPtr: saPtr = VarPtr(maToInit.sa)
+    Dim i As Long
+    '
+    If Not ma.isSet Then
+        With ma.sa
+            .cDims = 1
+            .cbElements = PTR_SIZE
+            .cLocks = 1
+            .fFeatures = FADF_AUTO Or FADF_FIXEDSIZE
+        End With
+        CopyMemory ByVal VarPtr(ma.ac), VarPtr(ma.sa), PTR_SIZE
+        ma.isSet = True
     End If
-    RemoteAssign rm, memAddress, rm.remoteVT, vbInteger + VT_BYREF, rm.memValue, newValue
-End Property
-
-'*******************************************************************************
-'This method assures the required redirection for both the remote varType and
-'   the remote value at the same time thus removing any additional stack frames
-'It can be used to both read from and write to memory by swapping the order of
-'   the last 2 parameters
-'*******************************************************************************
-Private Sub RemoteAssign(ByRef rm As REMOTE_MEMORY _
-                       , ByRef memAddress As LongPtr _
-                       , ByRef remoteVT As Variant _
-                       , ByVal newVT As VbVarType _
-                       , ByRef targetVariable As Variant _
-                       , ByRef newValue As Variant)
-    rm.memValue = memAddress
-    If Not rm.isInitialized Then InitRemoteMemory rm
-    remoteVT = newVT
-    targetVariable = newValue
-    remoteVT = vbEmpty 'Stop linking to remote address, for safety
+    '
+    With maToInit.sa
+        .cDims = 1
+        .cLocks = 1
+        .fFeatures = FADF_AUTO Or FADF_FIXEDSIZE
+    End With
+    '
+    ma.sa.pvData = VarPtr(maToInit.ac)
+    ma.sa.rgsabound0.cElements = LenB(maToInit.ac) / PTR_SIZE
+    '
+    For i = 0 To ma.sa.rgsabound0.cElements - 1
+        ma.ac.dPtr(i) = saPtr
+    Next i
+    '
+    ma.sa.rgsabound0.cElements = 0
+    ma.sa.pvData = NULL_PTR
+    '
+    maToInit.isSet = True
 End Sub
 
 '*******************************************************************************
@@ -215,8 +242,10 @@ Public Property Get MemByte(ByVal memAddress As LongPtr) As Byte
     #ElseIf TWINBASIC Then
         GetMem1 memAddress, MemByte
     #Else
-        Static rm As REMOTE_MEMORY
-        RemoteAssign rm, memAddress, rm.remoteVT, vbByte + VT_BYREF, MemByte, rm.memValue
+        Static ma As MEMORY_ACCESSOR: If Not ma.isSet Then InitMemoryAccessor ma
+        ma.sa.pvData = memAddress: ma.sa.rgsabound0.cElements = 1
+        MemByte = ma.ac.dByte(0)
+        ma.sa.rgsabound0.cElements = 0: ma.sa.pvData = NULL_PTR
     #End If
 End Property
 Public Property Let MemByte(ByVal memAddress As LongPtr, ByVal newValue As Byte)
@@ -225,8 +254,10 @@ Public Property Let MemByte(ByVal memAddress As LongPtr, ByVal newValue As Byte)
     #ElseIf TWINBASIC Then
         PutMem1 memAddress, newValue
     #Else
-        Static rm As REMOTE_MEMORY
-        RemoteAssign rm, memAddress, rm.remoteVT, vbByte + VT_BYREF, rm.memValue, newValue
+        Static ma As MEMORY_ACCESSOR: If Not ma.isSet Then InitMemoryAccessor ma
+        ma.sa.pvData = memAddress: ma.sa.rgsabound0.cElements = 1
+        ma.ac.dByte(0) = newValue
+        ma.sa.rgsabound0.cElements = 0: ma.sa.pvData = NULL_PTR
     #End If
 End Property
 
@@ -239,8 +270,10 @@ Public Property Get MemInt(ByVal memAddress As LongPtr) As Integer
     #ElseIf TWINBASIC Then
         GetMem2 memAddress, MemInt
     #Else
-        Static rm As REMOTE_MEMORY
-        RemoteAssign rm, memAddress, rm.remoteVT, vbInteger + VT_BYREF, MemInt, rm.memValue
+        Static ma As MEMORY_ACCESSOR: If Not ma.isSet Then InitMemoryAccessor ma
+        ma.sa.pvData = memAddress: ma.sa.rgsabound0.cElements = 1
+        MemInt = ma.ac.dInt(0)
+        ma.sa.rgsabound0.cElements = 0: ma.sa.pvData = NULL_PTR
     #End If
 End Property
 Public Property Let MemInt(ByVal memAddress As LongPtr, ByVal newValue As Integer)
@@ -249,8 +282,10 @@ Public Property Let MemInt(ByVal memAddress As LongPtr, ByVal newValue As Intege
     #ElseIf TWINBASIC Then
         PutMem2 memAddress, newValue
     #Else
-        Static rm As REMOTE_MEMORY
-        RemoteAssign rm, memAddress, rm.remoteVT, vbInteger + VT_BYREF, rm.memValue, newValue
+        Static ma As MEMORY_ACCESSOR: If Not ma.isSet Then InitMemoryAccessor ma
+        ma.sa.pvData = memAddress: ma.sa.rgsabound0.cElements = 1
+        ma.ac.dInt(0) = newValue
+        ma.sa.rgsabound0.cElements = 0: ma.sa.pvData = NULL_PTR
     #End If
 End Property
 
@@ -261,16 +296,20 @@ Public Property Get MemBool(ByVal memAddress As LongPtr) As Boolean
     #If Mac Or TWINBASIC Or (VBA7 = 0) Then
         CopyMemory MemBool, ByVal memAddress, 2
     #Else
-        Static rm As REMOTE_MEMORY
-        RemoteAssign rm, memAddress, rm.remoteVT, vbBoolean + VT_BYREF, MemBool, rm.memValue
+        Static ma As MEMORY_ACCESSOR: If Not ma.isSet Then InitMemoryAccessor ma
+        ma.sa.pvData = memAddress: ma.sa.rgsabound0.cElements = 1
+        MemBool = ma.ac.dBool(0)
+        ma.sa.rgsabound0.cElements = 0: ma.sa.pvData = NULL_PTR
     #End If
 End Property
 Public Property Let MemBool(ByVal memAddress As LongPtr, ByVal newValue As Boolean)
     #If Mac Or TWINBASIC Or (VBA7 = 0) Then
         CopyMemory ByVal memAddress, newValue, 2
     #Else
-        Static rm As REMOTE_MEMORY
-        RemoteAssign rm, memAddress, rm.remoteVT, vbBoolean + VT_BYREF, rm.memValue, newValue
+        Static ma As MEMORY_ACCESSOR: If Not ma.isSet Then InitMemoryAccessor ma
+        ma.sa.pvData = memAddress: ma.sa.rgsabound0.cElements = 1
+        ma.ac.dBool(0) = newValue
+        ma.sa.rgsabound0.cElements = 0: ma.sa.pvData = NULL_PTR
     #End If
 End Property
 
@@ -283,8 +322,10 @@ Public Property Get MemLong(ByVal memAddress As LongPtr) As Long
     #ElseIf TWINBASIC Then
         GetMem4 memAddress, MemLong
     #Else
-        Static rm As REMOTE_MEMORY
-        RemoteAssign rm, memAddress, rm.remoteVT, vbLong + VT_BYREF, MemLong, rm.memValue
+        Static ma As MEMORY_ACCESSOR: If Not ma.isSet Then InitMemoryAccessor ma
+        ma.sa.pvData = memAddress: ma.sa.rgsabound0.cElements = 1
+        MemLong = ma.ac.dLong(0)
+        ma.sa.rgsabound0.cElements = 0: ma.sa.pvData = NULL_PTR
     #End If
 End Property
 Public Property Let MemLong(ByVal memAddress As LongPtr, ByVal newValue As Long)
@@ -293,8 +334,10 @@ Public Property Let MemLong(ByVal memAddress As LongPtr, ByVal newValue As Long)
     #ElseIf TWINBASIC Then
         PutMem4 memAddress, newValue
     #Else
-        Static rm As REMOTE_MEMORY
-        RemoteAssign rm, memAddress, rm.remoteVT, vbLong + VT_BYREF, rm.memValue, newValue
+        Static ma As MEMORY_ACCESSOR: If Not ma.isSet Then InitMemoryAccessor ma
+        ma.sa.pvData = memAddress: ma.sa.rgsabound0.cElements = 1
+        ma.ac.dLong(0) = newValue
+        ma.sa.rgsabound0.cElements = 0: ma.sa.pvData = NULL_PTR
     #End If
 End Property
 
@@ -305,16 +348,20 @@ Public Property Get MemSng(ByVal memAddress As LongPtr) As Single
     #If Mac Or TWINBASIC Or (VBA7 = 0) Then
         CopyMemory MemSng, ByVal memAddress, 4
     #Else
-        Static rm As REMOTE_MEMORY
-        RemoteAssign rm, memAddress, rm.remoteVT, vbSingle + VT_BYREF, MemSng, rm.memValue
+        Static ma As MEMORY_ACCESSOR: If Not ma.isSet Then InitMemoryAccessor ma
+        ma.sa.pvData = memAddress: ma.sa.rgsabound0.cElements = 1
+        MemSng = ma.ac.dSng(0)
+        ma.sa.rgsabound0.cElements = 0: ma.sa.pvData = NULL_PTR
     #End If
 End Property
 Public Property Let MemSng(ByVal memAddress As LongPtr, ByVal newValue As Single)
     #If Mac Or TWINBASIC Or (VBA7 = 0) Then
         CopyMemory ByVal memAddress, newValue, 4
     #Else
-        Static rm As REMOTE_MEMORY
-        RemoteAssign rm, memAddress, rm.remoteVT, vbSingle + VT_BYREF, rm.memValue, newValue
+        Static ma As MEMORY_ACCESSOR: If Not ma.isSet Then InitMemoryAccessor ma
+        ma.sa.pvData = memAddress: ma.sa.rgsabound0.cElements = 1
+        ma.ac.dSng(0) = newValue
+        ma.sa.rgsabound0.cElements = 0: ma.sa.pvData = NULL_PTR
     #End If
 End Property
 
@@ -326,44 +373,22 @@ Public Property Get MemLongLong(ByVal memAddress As LongLong) As LongLong
     #If Mac Or TWINBASIC Or (VBA7 = 0) Then
         CopyMemory MemLongLong, ByVal memAddress, 8
     #Else
-        'Cannot set Variant/LongLong ByRef so we cannot use 'RemoteAssign'
-        Static rm As REMOTE_MEMORY: rm.memValue = memAddress
-        MemLongLong = ByRefLongLong(rm, rm.remoteVT, rm.memValue)
+        Static ma As MEMORY_ACCESSOR: If Not ma.isSet Then InitMemoryAccessor ma
+        ma.sa.pvData = memAddress: ma.sa.rgsabound0.cElements = 1
+        MemLongLong = ma.ac.dLongLong(0)
+        ma.sa.rgsabound0.cElements = 0: ma.sa.pvData = NULL_PTR
     #End If
 End Property
 Public Property Let MemLongLong(ByVal memAddress As LongLong, ByVal newValue As LongLong)
     #If Mac Or TWINBASIC Or (VBA7 = 0) Then
         CopyMemory ByVal memAddress, newValue, 8
     #Else
-        'Cannot set Variant/LongLong ByRef so we use Currency instead
-        Static rmSrc As REMOTE_MEMORY: rmSrc.memValue = VarPtr(newValue)
-        Static rmDest As REMOTE_MEMORY: rmDest.memValue = memAddress
-        LetByRefLongLong rmDest, rmDest.remoteVT, rmDest.memValue _
-                       , rmSrc, rmSrc.remoteVT, rmSrc.memValue
+        Static ma As MEMORY_ACCESSOR: If Not ma.isSet Then InitMemoryAccessor ma
+        ma.sa.pvData = memAddress: ma.sa.rgsabound0.cElements = 1
+        ma.ac.dLongLong(0) = newValue
+        ma.sa.rgsabound0.cElements = 0: ma.sa.pvData = NULL_PTR
     #End If
 End Property
-Private Property Get ByRefLongLong(ByRef rm As REMOTE_MEMORY _
-                                 , ByRef vt As Variant _
-                                 , ByRef memValue As Variant) As LongLong
-    If Not rm.isInitialized Then InitRemoteMemory rm
-    vt = vbLongLong + VT_BYREF
-    ByRefLongLong = memValue
-    vt = vbEmpty
-End Property
-Private Sub LetByRefLongLong(ByRef rmDest As REMOTE_MEMORY _
-                           , ByRef vtDest As Variant _
-                           , ByRef memValueDest As Variant _
-                           , ByRef rmSrc As REMOTE_MEMORY _
-                           , ByRef vtSrc As Variant _
-                           , ByRef memValueSrc As Variant)
-    If Not rmSrc.isInitialized Then InitRemoteMemory rmSrc
-    If Not rmDest.isInitialized Then InitRemoteMemory rmDest
-    vtDest = vbCurrency + VT_BYREF
-    vtSrc = vbCurrency + VT_BYREF
-    memValueDest = memValueSrc
-    vtDest = vbEmpty
-    vtSrc = vbEmpty
-End Sub
 #End If
 
 '*******************************************************************************
@@ -376,12 +401,11 @@ Public Property Get MemLongPtr(ByVal memAddress As LongPtr) As LongPtr
         CopyMemory MemLongPtr, ByVal memAddress, PTR_SIZE
     #ElseIf TWINBASIC Then
         GetMemPtr memAddress, MemLongPtr
-    #ElseIf Win64 Then
-        Static rm As REMOTE_MEMORY: rm.memValue = memAddress
-        MemLongPtr = ByRefLongLong(rm, rm.remoteVT, rm.memValue)
     #Else
-        Static rm As REMOTE_MEMORY
-        RemoteAssign rm, memAddress, rm.remoteVT, vbLong + VT_BYREF, MemLongPtr, rm.memValue
+        Static ma As MEMORY_ACCESSOR: If Not ma.isSet Then InitMemoryAccessor ma
+        ma.sa.pvData = memAddress: ma.sa.rgsabound0.cElements = 1
+        MemLongPtr = ma.ac.dPtr(0)
+        ma.sa.rgsabound0.cElements = 0: ma.sa.pvData = NULL_PTR
     #End If
 End Property
 Public Property Let MemLongPtr(ByVal memAddress As LongPtr, ByVal newValue As LongPtr)
@@ -389,13 +413,11 @@ Public Property Let MemLongPtr(ByVal memAddress As LongPtr, ByVal newValue As Lo
         CopyMemory ByVal memAddress, newValue, PTR_SIZE
     #ElseIf TWINBASIC Then
         PutMemPtr memAddress, newValue
-    #ElseIf Win64 Then
-        Static rmSrc As REMOTE_MEMORY: rmSrc.memValue = VarPtr(newValue)
-        Static rmDest As REMOTE_MEMORY: rmDest.memValue = memAddress
-        LetByRefLongLong rmDest, rmDest.remoteVT, rmDest.memValue, rmSrc, rmSrc.remoteVT, rmSrc.memValue
     #Else
-        Static rm As REMOTE_MEMORY
-        RemoteAssign rm, memAddress, rm.remoteVT, vbLong + VT_BYREF, rm.memValue, newValue
+        Static ma As MEMORY_ACCESSOR: If Not ma.isSet Then InitMemoryAccessor ma
+        ma.sa.pvData = memAddress: ma.sa.rgsabound0.cElements = 1
+        ma.ac.dPtr(0) = newValue
+        ma.sa.rgsabound0.cElements = 0: ma.sa.pvData = NULL_PTR
     #End If
 End Property
 
@@ -408,8 +430,10 @@ Public Property Get MemCur(ByVal memAddress As LongPtr) As Currency
     #ElseIf TWINBASIC Then
         GetMem8 memAddress, MemCur
     #Else
-        Static rm As REMOTE_MEMORY
-        RemoteAssign rm, memAddress, rm.remoteVT, vbCurrency + VT_BYREF, MemCur, rm.memValue
+        Static ma As MEMORY_ACCESSOR: If Not ma.isSet Then InitMemoryAccessor ma
+        ma.sa.pvData = memAddress: ma.sa.rgsabound0.cElements = 1
+        MemCur = ma.ac.dCur(0)
+        ma.sa.rgsabound0.cElements = 0: ma.sa.pvData = NULL_PTR
     #End If
 End Property
 Public Property Let MemCur(ByVal memAddress As LongPtr, ByVal newValue As Currency)
@@ -418,8 +442,10 @@ Public Property Let MemCur(ByVal memAddress As LongPtr, ByVal newValue As Curren
     #ElseIf TWINBASIC Then
         PutMem8 memAddress, newValue
     #Else
-        Static rm As REMOTE_MEMORY
-        RemoteAssign rm, memAddress, rm.remoteVT, vbCurrency + VT_BYREF, rm.memValue, newValue
+        Static ma As MEMORY_ACCESSOR: If Not ma.isSet Then InitMemoryAccessor ma
+        ma.sa.pvData = memAddress: ma.sa.rgsabound0.cElements = 1
+        ma.ac.dCur(0) = newValue
+        ma.sa.rgsabound0.cElements = 0: ma.sa.pvData = NULL_PTR
     #End If
 End Property
 
@@ -430,16 +456,20 @@ Public Property Get MemDate(ByVal memAddress As LongPtr) As Date
     #If Mac Or TWINBASIC Or (VBA7 = 0) Then
         CopyMemory MemDate, ByVal memAddress, 8
     #Else
-        Static rm As REMOTE_MEMORY
-        RemoteAssign rm, memAddress, rm.remoteVT, vbDate + VT_BYREF, MemDate, rm.memValue
+        Static ma As MEMORY_ACCESSOR: If Not ma.isSet Then InitMemoryAccessor ma
+        ma.sa.pvData = memAddress: ma.sa.rgsabound0.cElements = 1
+        MemDate = ma.ac.dDate(0)
+        ma.sa.rgsabound0.cElements = 0: ma.sa.pvData = NULL_PTR
     #End If
 End Property
 Public Property Let MemDate(ByVal memAddress As LongPtr, ByVal newValue As Date)
     #If Mac Or TWINBASIC Or (VBA7 = 0) Then
         CopyMemory ByVal memAddress, newValue, 8
     #Else
-        Static rm As REMOTE_MEMORY
-        RemoteAssign rm, memAddress, rm.remoteVT, vbDate + VT_BYREF, rm.memValue, newValue
+        Static ma As MEMORY_ACCESSOR: If Not ma.isSet Then InitMemoryAccessor ma
+        ma.sa.pvData = memAddress: ma.sa.rgsabound0.cElements = 1
+        ma.ac.dDate(0) = newValue
+        ma.sa.rgsabound0.cElements = 0: ma.sa.pvData = NULL_PTR
     #End If
 End Property
 
@@ -450,16 +480,20 @@ Public Property Get MemDbl(ByVal memAddress As LongPtr) As Double
     #If Mac Or TWINBASIC Or (VBA7 = 0) Then
         CopyMemory MemDbl, ByVal memAddress, 8
     #Else
-        Static rm As REMOTE_MEMORY
-        RemoteAssign rm, memAddress, rm.remoteVT, vbDouble + VT_BYREF, MemDbl, rm.memValue
+        Static ma As MEMORY_ACCESSOR: If Not ma.isSet Then InitMemoryAccessor ma
+        ma.sa.pvData = memAddress: ma.sa.rgsabound0.cElements = 1
+        MemDbl = ma.ac.dDbl(0)
+        ma.sa.rgsabound0.cElements = 0: ma.sa.pvData = NULL_PTR
     #End If
 End Property
 Public Property Let MemDbl(ByVal memAddress As LongPtr, ByVal newValue As Double)
     #If Mac Or TWINBASIC Or (VBA7 = 0) Then
         CopyMemory ByVal memAddress, newValue, 8
     #Else
-        Static rm As REMOTE_MEMORY
-        RemoteAssign rm, memAddress, rm.remoteVT, vbDouble + VT_BYREF, rm.memValue, newValue
+        Static ma As MEMORY_ACCESSOR: If Not ma.isSet Then InitMemoryAccessor ma
+        ma.sa.pvData = memAddress: ma.sa.rgsabound0.cElements = 1
+        ma.ac.dDbl(0) = newValue
+        ma.sa.rgsabound0.cElements = 0: ma.sa.pvData = NULL_PTR
     #End If
 End Property
 
@@ -479,17 +513,12 @@ Public Function MemObj(ByVal memAddress As LongPtr) As Object
         Set MemObj = obj
         CopyMemory obj, NULL_PTR, PTR_SIZE
     #Else
-        Static rm As REMOTE_MEMORY: rm.memValue = memAddress
-        If Not rm.isInitialized Then InitRemoteMemory rm
-        Set MemObj = RemObject(rm.remoteVT, rm.memValue)
+        Static ma As MEMORY_ACCESSOR: If Not ma.isSet Then InitMemoryAccessor ma
+        ma.sa.pvData = VarPtr(memAddress): ma.sa.rgsabound0.cElements = 1
+        Set MemObj = ma.ac.dObj(0)
+        ma.sa.rgsabound0.cElements = 0: ma.sa.pvData = NULL_PTR
     #End If
 End Function
-Private Property Get RemObject(ByRef vt As Variant _
-                             , ByRef memValue As Variant) As Object
-    vt = vbObject
-    Set RemObject = memValue
-    vt = vbEmpty
-End Property
 
 'Method purpose explanation at:
 'https://gist.github.com/cristianbuse/b9cc79164c1d31fdb30465f503ac36a9
@@ -502,7 +531,8 @@ End Property
 '   crossed in normal pointer operations.
 'This same sentinel chunk fixes native PropertyBag as well which has troubles
 '   when internal storage crosses 2GB boundary.
-Public Function UnsignedAdd(ByVal unsignedPtr As LongPtr, ByVal signedOffset As LongPtr) As LongPtr
+Public Function UnsignedAdd(ByVal unsignedPtr As LongPtr _
+                          , ByVal signedOffset As LongPtr) As LongPtr
     #If Win64 Then
         Const minNegative As LongLong = &H8000000000000000^
     #Else
@@ -629,14 +659,22 @@ End Function
 'Returns error 5 for a non-array
 '*******************************************************************************
 Public Function VarPtrArr(ByRef arr As Variant) As LongPtr
-    Dim vt As VbVarType: vt = MemInt(VarPtr(arr)) 'VarType(arr) ignores VT_BYREF
+    Static ma As MEMORY_ACCESSOR: If Not ma.isSet Then InitMemoryAccessor ma
+    ma.sa.pvData = VarPtr(arr): ma.sa.rgsabound0.cElements = 1
+    '
+    Dim vt As VbVarType: vt = ma.ac.dInt(0) 'VarType(arr) ignores VT_BYREF
     If vt And vbArray Then
         Const pArrayOffset As Long = 8
-        VarPtrArr = VarPtr(arr) + pArrayOffset
-        If vt And VT_BYREF Then VarPtrArr = MemLongPtr(VarPtrArr)
+        VarPtrArr = ma.sa.pvData + pArrayOffset
+        If vt And VT_BYREF Then
+            ma.sa.pvData = VarPtrArr
+            VarPtrArr = ma.ac.dPtr(0)
+        End If
     Else
+        ma.sa.rgsabound0.cElements = 0: ma.sa.pvData = NULL_PTR
         Err.Raise 5, "VarPtrArr", "Array required"
     End If
+    ma.sa.rgsabound0.cElements = 0: ma.sa.pvData = NULL_PTR
 End Function
 
 '*******************************************************************************
@@ -644,179 +682,192 @@ End Function
 'Returns error 5 for a non-array
 '*******************************************************************************
 Public Function ArrPtr(ByRef arr As Variant) As LongPtr
-    Dim vt As VbVarType: vt = MemInt(VarPtr(arr)) 'VarType(arr) ignores VT_BYREF
+    Static ma As MEMORY_ACCESSOR: If Not ma.isSet Then InitMemoryAccessor ma
+    ma.sa.pvData = VarPtr(arr): ma.sa.rgsabound0.cElements = 1
+    '
+    Dim vt As VbVarType: vt = ma.ac.dInt(0) 'VarType(arr) ignores VT_BYREF
     If vt And vbArray Then
         Const pArrayOffset As Long = 8
-        ArrPtr = MemLongPtr(VarPtr(arr) + pArrayOffset)
-        If vt And VT_BYREF Then ArrPtr = MemLongPtr(ArrPtr)
+        ma.sa.pvData = ma.sa.pvData + pArrayOffset
+        ArrPtr = ma.ac.dPtr(0)
+        If vt And VT_BYREF Then
+            ma.sa.pvData = ArrPtr
+            ArrPtr = ma.ac.dPtr(0)
+        End If
     Else
+        ma.sa.rgsabound0.cElements = 0: ma.sa.pvData = NULL_PTR
         Err.Raise 5, "ArrPtr", "Array required"
     End If
+    ma.sa.rgsabound0.cElements = 0: ma.sa.pvData = NULL_PTR
 End Function
 
 '*******************************************************************************
-'Alternative for CopyMemory - not affected by API speed issues on Windows
+'Alternative for CopyMemory - not affected by API speed issues on Windows VBA7
 '--------------------------
 'Mac - wrapper around CopyMemory/memmove
-'Win - bytesCount 1 to 16777216 - no API calls. Uses a combination of
-'      REMOTE_MEMORY/SAFEARRAY_1D structs as well as native Strings and Arrays
-'      to manipulate memory.
-'      For some smaller sizes (<=5) optimizes via MemLong, MemInt, MemByte etc.
-'    - bytesCount < 0 or > 16777216 - wrapper around CopyMemory/RtlMoveMemory
+'Win - bytesCount 1 to 33,554,432 - no API calls. Uses MEMORY_ACCESSOR structs
+'    - bytesCount < 0 or > 33,554,432 - wrapper around CopyMemory/RtlMoveMemory
 '*******************************************************************************
+#If (Mac = 0) And (TWINBASIC = 0) And VBA7 Then
 Public Sub MemCopy(ByVal destinationPtr As LongPtr _
                  , ByVal sourcePtr As LongPtr _
                  , ByVal bytesCount As LongPtr)
-    If destinationPtr = sourcePtr Then Exit Sub
-#If Mac Or TWINBASIC Or (VBA7 = 0) Then
-    CopyMemory ByVal destinationPtr, ByVal sourcePtr, bytesCount
-#Else
-    Const maxSizeSpeedGain As Long = &H1000000 'Beyond this use API directly
+    Const maxSizeSpeedGain As Long = &H2000000 'Beyond this use API directly
     If bytesCount < 0 Or bytesCount > maxSizeSpeedGain Then
         CopyMemory ByVal destinationPtr, ByVal sourcePtr, bytesCount
         Exit Sub
+    ElseIf destinationPtr = sourcePtr Then
+        Exit Sub
     End If
     '
-    If bytesCount <= 4 Then 'Cannot copy via BSTR as destination
+    Static src As MEMORY_ACCESSOR
+    Static trg As MEMORY_ACCESSOR
+    Static byteMap(0 To 255) As ByteInfo
+    Dim i As Long
+    Dim j As Long
+    '
+    If Not src.isSet Then
+        InitMemoryAccessor src
+        InitMemoryAccessor trg
+        For i = &H1 To &HFF&
+            With byteMap(i)
+                For j = 0 To 7
+                    .bit(j) = i And 2 ^ j
+                Next j
+            End With
+        Next i
+    End If
+    '
+    src.sa.pvData = sourcePtr
+    trg.sa.pvData = destinationPtr
+    '
+    If bytesCount <= 8 Then 'Optional optimization - small gain
+        src.sa.rgsabound0.cElements = 1
+        trg.sa.rgsabound0.cElements = 1
         Select Case bytesCount
-            Case 1: MemByte(destinationPtr) = MemByte(sourcePtr)
-            Case 2: MemInt(destinationPtr) = MemInt(sourcePtr)
-            Case 3: MemInt(destinationPtr) = MemInt(sourcePtr)
-                    MemByte(destinationPtr + 2) = MemByte(sourcePtr + 2)
-            Case 4: MemLong(destinationPtr) = MemLong(sourcePtr)
+            Case 0: GoTo Clean
+            Case 1: trg.ac.dByte(0) = src.ac.dByte(0): GoTo Clean
+            Case 2: trg.ac.dInt(0) = src.ac.dInt(0): GoTo Clean
+            Case 4: trg.ac.dLong(0) = src.ac.dLong(0): GoTo Clean
+            Case 8: trg.ac.dCur(0) = src.ac.dCur(0): GoTo Clean
         End Select
-        Exit Sub
-    ElseIf bytesCount = 8 Then 'Optional optimization - small gain
-        MemCur(destinationPtr) = MemCur(sourcePtr)
-        Exit Sub
     End If
     '
-    'Structs used to read/write memory
-    Static sArrByte As SAFEARRAY_1D
-    Static rmArrSrc As REMOTE_MEMORY
-    Static rmSrc As REMOTE_MEMORY
-    Static rmDest As REMOTE_MEMORY
-    Static rmBSTR As REMOTE_MEMORY
-    '
-    If Not rmArrSrc.isInitialized Then
-        With sArrByte
-            .cDims = 1
-            .cLocks = 1
-            .fFeatures = FADF_HAVEVARTYPE
-            .cbElements = BYTE_SIZE
-        End With
-        rmArrSrc.memValue = VarPtr(sArrByte)
-        '
-        InitRemoteMemory rmArrSrc
-        InitRemoteMemory rmSrc
-        InitRemoteMemory rmDest
-        InitRemoteMemory rmBSTR
-    End If
-    '
-    rmSrc.memValue = sourcePtr
-    rmDest.memValue = destinationPtr
-    CopyBytes CLng(bytesCount), rmSrc, rmSrc.remoteVT, rmDest, rmDest.remoteVT _
-        , rmDest.memValue, sArrByte, rmArrSrc.memValue, rmArrSrc.remoteVT _
-        , rmBSTR, rmBSTR.remoteVT, rmBSTR.memValue
-#End If
-End Sub
-'*******************************************************************************
-'Utility for 'MemCopy' - avoids extra stack frames
-'The 'bytesCount' expected to be larger than 4 because the first 4 bytes are
-'   needed for the destination BSTR's length.
-'The source can either be a String or an array of bytes depending on the first 4
-'   bytes in the source. Choice between the 2 is based on speed considerations
-'Note that no byte is changed in source regardless if BSTR or SAFEARRAY is used
-'*******************************************************************************
-Private Sub CopyBytes(ByVal bytesCount As Long _
-                    , ByRef rmSrc As REMOTE_MEMORY, ByRef vtSrc As Variant _
-                    , ByRef rmDest As REMOTE_MEMORY, ByRef vtDest As Variant _
-                    , ByRef destValue As Variant, ByRef sArr As SAFEARRAY_1D _
-                    , ByRef arrBytes As Variant, ByRef vtArr As Variant _
-                    , ByRef rmBSTR As REMOTE_MEMORY, ByRef vtBSTR As Variant _
-                    , ByRef bstrPtrValue As Variant)
-    Const bstrPrefixSize As Long = 4
-    Dim bytes As Long: bytes = bytesCount - bstrPrefixSize
-    Dim bstrLength As Long
-    Dim s As String 'Must not be Variant so that LSet is faster
-    Dim useBSTR As Boolean
+    Dim b As Long: b = CLng(bytesCount)
+    Dim chunk As Long
+    Dim overlapL As Boolean
+    Dim overlapR As Boolean
     Dim hasOverlap As Boolean
-    Dim overlapBSTRLen As Long
-    Dim overlapOffset As LongPtr
     '
-    vtSrc = vbLong + VT_BYREF
-    bstrLength = rmSrc.memValue 'Copy first 4 bytes froum source
-    vtSrc = vbLongPtr
+    overlapL = (sourcePtr > destinationPtr) And (destinationPtr + b > sourcePtr)
+    overlapR = (destinationPtr > sourcePtr) And (sourcePtr + b > destinationPtr)
+    hasOverlap = overlapL Or overlapR
     '
-    Const maxMidBs As Long = 2 ^ 5 'Use SAFEARRAY and MidB below this value
-    useBSTR = (bstrLength >= bytes Or bstrLength < 0) And bytes > maxMidBs
-    If useBSTR Then 'Prepare source BSTR
-        rmBSTR.memValue = VarPtr(s)
-        #If Win64 Then
-            Const curBSTRPrefixSize As Currency = 0.0004
-            vtSrc = vbCurrency
-            vtBSTR = vbCurrency + VT_BYREF
-            bstrPtrValue = rmSrc.memValue + curBSTRPrefixSize
-            vtSrc = vbLongPtr
-        #Else
-            vtBSTR = vbLong + VT_BYREF
-            bstrPtrValue = rmSrc.memValue + bstrPrefixSize
-        #End If
-    Else 'Prepare source SAFEARRAY
-        sArr.pvData = rmSrc.memValue + bstrPrefixSize
-        sArr.rgsabound0.cElements = bytes
-        vtArr = vbArray + vbByte
-    End If
-    '
-    'Prepare destination BSTR
-    If rmDest.memValue > rmSrc.memValue Then
-        hasOverlap = UnsignedAdd(rmSrc.memValue, bytes + bstrPrefixSize) > rmDest.memValue
-        If hasOverlap Then overlapOffset = rmDest.memValue - rmSrc.memValue
-    Else
-        hasOverlap = False
-    End If
-    vtDest = vbLong + VT_BYREF
-    If hasOverlap Then overlapBSTRLen = destValue
-    destValue = bytes
-    vtDest = vbLongPtr
-    rmDest.memValue = rmDest.memValue + bstrPrefixSize
-    vtDest = vbString
-    '
-    'Copy and clean
-    If useBSTR Then
-        LSet destValue = s 'LSet cannot copy an odd number of bytes
-        If bytes Mod 2 = 1 Then
-            MidB(destValue, bytes, 1) = MidB$(s, bytes, 1)
-        End If
-        bstrPtrValue = 0
-        vtBSTR = vbEmpty
-    Else
-        Const maxMidBa As Long = maxMidBs * 2 ^ 3
-        If bytes > maxMidBa Then
-            LSet destValue = arrBytes
-            If bytes Mod 2 = 1 Then
-                Static lastByte(0 To 0) As Byte
-                lastByte(0) = arrBytes(UBound(arrBytes))
-                MidB(destValue, bytes, 1) = lastByte
-            End If
+    If b And &H7FFF8000 Then
+        src.sa.cbElements = &H8000&
+        trg.sa.cbElements = &H8000&
+        src.sa.rgsabound0.cElements = b \ src.sa.cbElements
+        trg.sa.rgsabound0.cElements = src.sa.rgsabound0.cElements
+        '
+        chunk = src.sa.rgsabound0.cElements * src.sa.cbElements
+        b = b - chunk
+        '
+        If overlapR Then
+            src.sa.pvData = src.sa.pvData + b
+            trg.sa.pvData = trg.sa.pvData + b
+            For i = src.sa.rgsabound0.cElements - 1 To 0 Step -1
+                trg.ac.s32K(i) = src.ac.s32K(i)
+            Next i
         Else
-            MidB(destValue, 1) = arrBytes
+            If overlapL Then
+                For i = 0 To src.sa.rgsabound0.cElements - 1
+                     trg.ac.s32K(i) = src.ac.s32K(i)
+                Next i
+            Else
+                For i = 0 To src.sa.rgsabound0.cElements - 1
+                     trg.ac.b32K(i) = src.ac.b32K(i)
+                Next i
+            End If
+            src.sa.pvData = src.sa.pvData + chunk
+            trg.sa.pvData = trg.sa.pvData + chunk
         End If
-        vtArr = vbEmpty
+        chunk = &H8000&
+    ElseIf overlapR Then
+        src.sa.pvData = src.sa.pvData + b
+        trg.sa.pvData = trg.sa.pvData + b
+    End If
+    src.sa.rgsabound0.cElements = 1
+    trg.sa.rgsabound0.cElements = 1
+    '
+    i = b And &HFF&
+    If i Then
+        With byteMap(i)
+            If overlapR Then
+                If .bit(0) Then src.sa.pvData = src.sa.pvData - 1: trg.sa.pvData = trg.sa.pvData - 1: trg.ac.dByte(0) = src.ac.dByte(0)
+                If .bit(1) Then src.sa.pvData = src.sa.pvData - 2: trg.sa.pvData = trg.sa.pvData - 2: trg.ac.dInt(0) = src.ac.dInt(0)
+                If .bit(2) Then src.sa.pvData = src.sa.pvData - 4: trg.sa.pvData = trg.sa.pvData - 4: trg.ac.dLong(0) = src.ac.dLong(0)
+                If .bit(3) Then src.sa.pvData = src.sa.pvData - 8: trg.sa.pvData = trg.sa.pvData - 8: trg.ac.dCur(0) = src.ac.dCur(0)
+                If .bit(4) Then src.sa.pvData = src.sa.pvData - 16: trg.sa.pvData = trg.sa.pvData - 16: trg.ac.s16(0) = src.ac.s16(0)
+                If .bit(5) Then src.sa.pvData = src.sa.pvData - 32: trg.sa.pvData = trg.sa.pvData - 32: trg.ac.s32(0) = src.ac.s32(0)
+                If .bit(6) Then src.sa.pvData = src.sa.pvData - 64: trg.sa.pvData = trg.sa.pvData - 64: trg.ac.s64(0) = src.ac.s64(0)
+                If .bit(7) Then src.sa.pvData = src.sa.pvData - 128: trg.sa.pvData = trg.sa.pvData - 128: trg.ac.s128(0) = src.ac.s128(0)
+            Else
+                If .bit(0) Then trg.ac.dByte(0) = src.ac.dByte(0): src.sa.pvData = src.sa.pvData + 1: trg.sa.pvData = trg.sa.pvData + 1
+                If .bit(1) Then trg.ac.dInt(0) = src.ac.dInt(0): src.sa.pvData = src.sa.pvData + 2: trg.sa.pvData = trg.sa.pvData + 2
+                If .bit(2) Then trg.ac.dLong(0) = src.ac.dLong(0): src.sa.pvData = src.sa.pvData + 4: trg.sa.pvData = trg.sa.pvData + 4
+                If .bit(3) Then trg.ac.dCur(0) = src.ac.dCur(0): src.sa.pvData = src.sa.pvData + 8: trg.sa.pvData = trg.sa.pvData + 8
+                If overlapL Then
+                    If .bit(4) Then trg.ac.s16(0) = src.ac.s16(0): src.sa.pvData = src.sa.pvData + 16: trg.sa.pvData = trg.sa.pvData + 16
+                    If .bit(5) Then trg.ac.s32(0) = src.ac.s32(0): src.sa.pvData = src.sa.pvData + 32: trg.sa.pvData = trg.sa.pvData + 32
+                    If .bit(6) Then trg.ac.s64(0) = src.ac.s64(0): src.sa.pvData = src.sa.pvData + 64: trg.sa.pvData = trg.sa.pvData + 64
+                    If .bit(7) Then trg.ac.s128(0) = src.ac.s128(0): src.sa.pvData = src.sa.pvData + 128: trg.sa.pvData = trg.sa.pvData + 128
+                Else
+                    If .bit(4) Then trg.ac.b16(0) = src.ac.b16(0): src.sa.pvData = src.sa.pvData + 16: trg.sa.pvData = trg.sa.pvData + 16
+                    If .bit(5) Then trg.ac.b32(0) = src.ac.b32(0): src.sa.pvData = src.sa.pvData + 32: trg.sa.pvData = trg.sa.pvData + 32
+                    If .bit(6) Then trg.ac.b64(0) = src.ac.b64(0): src.sa.pvData = src.sa.pvData + 64: trg.sa.pvData = trg.sa.pvData + 64
+                    If .bit(7) Then trg.ac.b128(0) = src.ac.b128(0): src.sa.pvData = src.sa.pvData + 128: trg.sa.pvData = trg.sa.pvData + 128
+                End If
+            End If
+        End With
     End If
     '
-    vtDest = vbLongPtr
-    rmDest.memValue = rmDest.memValue - bstrPrefixSize
-    vtDest = vbLong + VT_BYREF
-    destValue = bstrLength 'Copy the correct 'BSTR length' bytes
-    vtDest = vbLongPtr
-    If hasOverlap Then
-        rmDest.memValue = rmDest.memValue + overlapOffset
-        vtDest = vbLong + VT_BYREF
-        destValue = overlapBSTRLen
-        vtDest = vbLongPtr
+    i = (b And &H7F00&) / &H100&
+    If i Then
+        With byteMap(i)
+            If overlapR Then
+                If .bit(0) Then src.sa.pvData = src.sa.pvData - 256: trg.sa.pvData = trg.sa.pvData - 256: trg.ac.s256(0) = src.ac.s256(0)
+                If .bit(1) Then src.sa.pvData = src.sa.pvData - 512: trg.sa.pvData = trg.sa.pvData - 512: trg.ac.s512(0) = src.ac.s512(0)
+                If .bit(2) Then src.sa.pvData = src.sa.pvData - 1024: trg.sa.pvData = trg.sa.pvData - 1024: trg.ac.s1K(0) = src.ac.s1K(0)
+                If .bit(3) Then src.sa.pvData = src.sa.pvData - 2048: trg.sa.pvData = trg.sa.pvData - 2048: trg.ac.s2K(0) = src.ac.s2K(0)
+                If .bit(4) Then src.sa.pvData = src.sa.pvData - 4096: trg.sa.pvData = trg.sa.pvData - 4096: trg.ac.s4K(0) = src.ac.s4K(0)
+                If .bit(5) Then src.sa.pvData = src.sa.pvData - 8192: trg.sa.pvData = trg.sa.pvData - 8192: trg.ac.s8K(0) = src.ac.s8K(0)
+                If .bit(6) Then src.sa.pvData = src.sa.pvData - 16384: trg.sa.pvData = trg.sa.pvData - 16384: trg.ac.s16K(0) = src.ac.s16K(0)
+            ElseIf overlapL Then
+                If .bit(0) Then trg.ac.s256(0) = src.ac.s256(0): src.sa.pvData = src.sa.pvData + 256: trg.sa.pvData = trg.sa.pvData + 256
+                If .bit(1) Then trg.ac.s512(0) = src.ac.s512(0): src.sa.pvData = src.sa.pvData + 512: trg.sa.pvData = trg.sa.pvData + 512
+                If .bit(2) Then trg.ac.s1K(0) = src.ac.s1K(0): src.sa.pvData = src.sa.pvData + 1024: trg.sa.pvData = trg.sa.pvData + 1024
+                If .bit(3) Then trg.ac.s2K(0) = src.ac.s2K(0): src.sa.pvData = src.sa.pvData + 2048: trg.sa.pvData = trg.sa.pvData + 2048
+                If .bit(4) Then trg.ac.s4K(0) = src.ac.s4K(0): src.sa.pvData = src.sa.pvData + 4096: trg.sa.pvData = trg.sa.pvData + 4096
+                If .bit(5) Then trg.ac.s8K(0) = src.ac.s8K(0): src.sa.pvData = src.sa.pvData + 8192: trg.sa.pvData = trg.sa.pvData + 8192
+                If .bit(6) Then trg.ac.s16K(0) = src.ac.s16K(0): src.sa.pvData = src.sa.pvData + 16384: trg.sa.pvData = trg.sa.pvData + 16384
+            Else
+                If .bit(0) Then trg.ac.b256(0) = src.ac.b256(0): src.sa.pvData = src.sa.pvData + 256: trg.sa.pvData = trg.sa.pvData + 256
+                If .bit(1) Then trg.ac.b512(0) = src.ac.b512(0): src.sa.pvData = src.sa.pvData + 512: trg.sa.pvData = trg.sa.pvData + 512
+                If .bit(2) Then trg.ac.b1K(0) = src.ac.b1K(0): src.sa.pvData = src.sa.pvData + 1024: trg.sa.pvData = trg.sa.pvData + 1024
+                If .bit(3) Then trg.ac.b2K(0) = src.ac.b2K(0): src.sa.pvData = src.sa.pvData + 2048: trg.sa.pvData = trg.sa.pvData + 2048
+                If .bit(4) Then trg.ac.b4K(0) = src.ac.b4K(0): src.sa.pvData = src.sa.pvData + 4096: trg.sa.pvData = trg.sa.pvData + 4096
+                If .bit(5) Then trg.ac.b8K(0) = src.ac.b8K(0): src.sa.pvData = src.sa.pvData + 8192: trg.sa.pvData = trg.sa.pvData + 8192
+                If .bit(6) Then trg.ac.b16K(0) = src.ac.b16K(0): src.sa.pvData = src.sa.pvData + 16384: trg.sa.pvData = trg.sa.pvData + 16384
+            End If
+        End With
     End If
+Clean:
+    src.sa.rgsabound0.cElements = 0
+    trg.sa.rgsabound0.cElements = 0
+    src.sa.pvData = NULL_PTR
+    trg.sa.pvData = NULL_PTR
 End Sub
+#End If
 
 '*******************************************************************************
 'Copy a param array to another array of Variants while preserving ByRef elements
@@ -824,8 +875,14 @@ End Sub
 '   CloneParamArray Not Not args, outArray
 '*******************************************************************************
 Public Sub CloneParamArray(ByVal paramPtr As LongPtr, ByRef out() As Variant)
-    Static rm As REMOTE_MEMORY: If Not rm.isInitialized Then InitRemoteMemory rm
-    RemoteAssign rm, paramPtr, rm.remoteVT, vbArray + vbVariant, out, rm.memValue
+    Static ma As MEMORY_ACCESSOR: If Not ma.isSet Then InitMemoryAccessor ma
+    Dim v As Variant:             v = paramPtr
+    '
+    ma.sa.pvData = VarPtr(v): ma.sa.rgsabound0.cElements = 1
+    ma.ac.dInt(0) = vbArray + vbVariant
+    out = v
+    ma.ac.dInt(0) = vbLongPtr
+    ma.sa.rgsabound0.cElements = 0: ma.sa.pvData = NULL_PTR
 End Sub
 
 '*******************************************************************************
@@ -851,8 +908,7 @@ Public Function StringToIntegers(ByRef s As String _
                                , Optional ByVal startIndex As Long = 1 _
                                , Optional ByVal outLength As Long = -1 _
                                , Optional ByVal outLowBound As Long = 0) As Integer()
-    Static rm As REMOTE_MEMORY
-    Static sArr As SAFEARRAY_1D
+    Static ma As MEMORY_ACCESSOR: If Not ma.isSet Then InitMemoryAccessor ma
     Const methodName As String = "StringToIntegers"
     Dim cLen As Long: cLen = Len(s)
 
@@ -865,21 +921,12 @@ Public Function StringToIntegers(ByRef s As String _
         If outLength < 0 Then outLength = 0
     End If
     '
-    If Not rm.isInitialized Then
-        InitRemoteMemory rm
-        With sArr
-            .cDims = 1
-            .cLocks = 1
-            .fFeatures = FADF_HAVEVARTYPE
-            .cbElements = INT_SIZE
-        End With
-    End If
-    '
-    sArr.pvData = StrPtr(s) + (startIndex - 1) * INT_SIZE
-    sArr.rgsabound0.lLbound = outLowBound
-    sArr.rgsabound0.cElements = outLength
-    '
-    RemoteAssign rm, VarPtr(sArr), rm.remoteVT, vbArray + vbInteger, StringToIntegers, rm.memValue
+    ma.sa.pvData = StrPtr(s) + (startIndex - 1) * INT_SIZE
+    ma.sa.cbElements = INT_SIZE
+    ma.sa.rgsabound0.lLbound = outLowBound
+    ma.sa.rgsabound0.cElements = outLength
+    StringToIntegers = ma.ac.dInt
+    ma.sa.rgsabound0.cElements = 0: ma.sa.pvData = NULL_PTR
 End Function
 
 '*******************************************************************************
@@ -891,8 +938,7 @@ End Function
 Public Function IntegersToString(ByRef ints() As Integer _
                                , Optional ByVal startIndex As Long = 0 _
                                , Optional ByVal outLength As Long = -1) As String
-    Static rm As REMOTE_MEMORY
-    Static sArr As SAFEARRAY_1D
+    Static ma As MEMORY_ACCESSOR: If Not ma.isSet Then InitMemoryAccessor ma
     Const methodName As String = "IntegersToString"
 
     If GetArrayDimsCount(ints) <> 1 Then
@@ -905,21 +951,12 @@ Public Function IntegersToString(ByRef ints() As Integer _
         outLength = UBound(ints) - startIndex + 1
         If outLength < 0 Then Exit Function
     End If
-    If Not rm.isInitialized Then
-        InitRemoteMemory rm
-        With sArr
-            .cDims = 1
-            .cLocks = 1
-            .fFeatures = FADF_HAVEVARTYPE
-            .cbElements = BYTE_SIZE
-            .rgsabound0.lLbound = 0
-        End With
-    End If
     '
-    sArr.pvData = VarPtr(ints(startIndex))
-    sArr.rgsabound0.cElements = outLength * INT_SIZE
-    '
-    RemoteAssign rm, VarPtr(sArr), rm.remoteVT, vbArray + vbByte, IntegersToString, rm.memValue
+    ma.sa.pvData = VarPtr(ints(startIndex))
+    ma.sa.cbElements = BYTE_SIZE
+    ma.sa.rgsabound0.cElements = outLength * INT_SIZE
+    IntegersToString = ma.ac.dByte
+    ma.sa.rgsabound0.cElements = 0: ma.sa.pvData = NULL_PTR
 End Function
 
 '*******************************************************************************
@@ -942,7 +979,8 @@ Public Function EmptyArray(ByVal numberOfDimensions As Long _
     End Select
     '
     Static fakeSafeArray() As Long
-    Static rm As REMOTE_MEMORY
+    Static ma As MEMORY_ACCESSOR
+    Static v As Variant
     #If Win64 Then
         Const safeArraySize = 6
     #Else
@@ -951,11 +989,11 @@ Public Function EmptyArray(ByVal numberOfDimensions As Long _
     Const fFeaturesHi As Long = FADF_HAVEVARTYPE * &H10000
     Dim i As Long
     '
-    If Not rm.isInitialized Then
-        InitRemoteMemory rm
+    If Not ma.isSet Then
+        InitMemoryAccessor ma
         ReDim fakeSafeArray(0 To safeArraySize + MAX_DIMENSION * 2 - 1)
         fakeSafeArray(1) = 1 'cbElements member - needs to be non-zero
-        rm.memValue = VarPtr(fakeSafeArray(0)) 'The fake ArrPtr
+        v = VarPtr(fakeSafeArray(0)) 'The fake ArrPtr
         '
         'Set 'cElements' to 1 for each SAFEARRAYBOUND
         For i = safeArraySize To UBound(fakeSafeArray, 1) Step 2
@@ -966,7 +1004,11 @@ Public Function EmptyArray(ByVal numberOfDimensions As Long _
     i = safeArraySize + (numberOfDimensions - 1) * 2 'Highest dimension position
     '
     fakeSafeArray(i) = 0 'Highest dimension must have 0 'cElements'
-    RemoteAssign rm, VarPtr(fakeSafeArray(0)), rm.remoteVT, vbArray + vType, EmptyArray, rm.memValue
+    ma.sa.pvData = VarPtr(v): ma.sa.rgsabound0.cElements = 1
+    ma.ac.dInt(0) = vbArray + vType
+    EmptyArray = v
+    ma.ac.dInt(0) = vbLongPtr
+    ma.sa.rgsabound0.cElements = 0: ma.sa.pvData = NULL_PTR
     fakeSafeArray(i) = 1
 End Function
 
@@ -1017,14 +1059,14 @@ End Sub
 '*******************************************************************************
 'Fills target memory with the specified Byte value
 '*******************************************************************************
+#If Mac Or VBA7 Then
 Public Sub MemFill(ByVal destinationPtr As LongPtr _
                  , ByVal bytesCount As LongPtr _
                  , ByVal fillByte As Byte)
 #If Mac Then
     FillMemory ByVal destinationPtr, fillByte, bytesCount
-#ElseIf (VBA7 = 0) Then
-    FillMemory ByVal destinationPtr, bytesCount, fillByte
-#Else
+    Exit Sub
+#End If
     If bytesCount = 0 Then Exit Sub
     Const maxSizeSpeedGain As Long = &H100000 'Beyond this use API directly
     If bytesCount < 0 Or bytesCount > maxSizeSpeedGain Then
@@ -1036,8 +1078,6 @@ Public Sub MemFill(ByVal destinationPtr As LongPtr _
     Dim bytesLeft As Long
     Dim bytes As Long
     Dim chunk As Long
-    Static rm As REMOTE_MEMORY
-    If Not rm.isInitialized Then InitRemoteMemory rm
     '
     If bytesCount > maxSizeMidB Then
         bytes = maxSizeMidB
@@ -1046,7 +1086,32 @@ Public Sub MemFill(ByVal destinationPtr As LongPtr _
     Else
         bytes = CLng(bytesCount)
     End If
-    FillBytes destinationPtr, bytes, fillByte, rm.remoteVT, rm.memValue
+    '
+    Const bstrPrefixSize As Long = 4
+    Static ma As MEMORY_ACCESSOR: If Not ma.isSet Then InitMemoryAccessor ma
+    Dim i As Long
+    '
+    ma.sa.pvData = destinationPtr
+    ma.sa.cbElements = BYTE_SIZE
+    If bytes > 5 Then 'Use MidB
+        Dim s As String
+        '
+        ma.sa.rgsabound0.cElements = 5
+        ma.ac.dLong(0) = bytes - bstrPrefixSize
+        ma.ac.dByte(4) = fillByte
+        ma.sa.pvData = VarPtr(s)
+        ma.ac.dPtr(0) = destinationPtr + bstrPrefixSize
+        MidB$(s, 2) = s 'The actual fill
+        ma.ac.dPtr(0) = NULL_PTR
+        ma.sa.pvData = destinationPtr
+        bytes = 4
+    End If
+    ma.sa.rgsabound0.cElements = bytes
+    For i = 0 To bytes - 1
+        ma.ac.dByte(i) = fillByte
+    Next i
+    ma.sa.rgsabound0.cElements = 0
+    ma.sa.pvData = NULL_PTR
     '
     Do While bytesLeft > 0
         If chunk > bytesLeft Then bytes = bytesLeft Else bytes = chunk
@@ -1054,82 +1119,5 @@ Public Sub MemFill(ByVal destinationPtr As LongPtr _
         bytesLeft = bytesLeft - bytes
         chunk = chunk * 2
     Loop
+End Sub
 #End If
-End Sub
-Private Sub FillBytes(ByVal destinationPtr As LongPtr _
-                    , ByVal bytesCount As Long _
-                    , ByVal fillByte As Byte _
-                    , ByRef vt As Variant _
-                    , ByRef rmValue As Variant)
-    rmValue = destinationPtr
-    If bytesCount > 5 Then
-        Const bstrPrefixSize As Long = 4
-        Dim s As String
-        '
-        vt = vbLong + VT_BYREF
-        rmValue = bytesCount - bstrPrefixSize 'Write BSTR LenB
-        '
-        vt = vbLongPtr
-        rmValue = destinationPtr + bstrPrefixSize 'Move address to byte 5
-        '
-        #If Win64 Then
-            Dim bstrPtr As Currency: vt = vbCurrency
-        #Else
-            Dim bstrPtr As Long:     vt = vbLong
-        #End If
-        bstrPtr = rmValue
-        '
-        vt = vbByte + VT_BYREF
-        rmValue = fillByte 'Copy fill byte to byte 5
-        '
-        vt = vbLongPtr
-        rmValue = VarPtr(s)
-        '
-        #If Win64 Then
-            vt = vbCurrency + VT_BYREF
-        #Else
-            vt = vbLong + VT_BYREF
-        #End If
-        rmValue = bstrPtr 'Redirect to fake BSTR
-        '
-        MidB$(s, 2) = s 'The actual fill
-        rmValue = 0     'Clear BSTR
-        '
-        vt = vbLongPtr
-        rmValue = destinationPtr
-    Else
-        Dim extraByte As Boolean: extraByte = (bytesCount Mod 2) = 1
-    End If
-    '
-    Select Case bytesCount
-    Case 1
-    Case 2, 3
-        vt = vbInteger + VT_BYREF
-        If fillByte And &H80 Then
-            rmValue = fillByte Or (fillByte Xor &H80) * &H100 Or &H8000
-        Else
-            rmValue = fillByte * &H101
-        End If
-        If extraByte Then
-            vt = vbLongPtr
-            rmValue = rmValue + 2
-        End If
-    Case Else
-        vt = vbLong + VT_BYREF
-        If fillByte And &H80 Then
-            rmValue = fillByte * &H10101 Or (fillByte Xor &H80) _
-                    * &H1000000 Or &H80000000
-        Else
-            rmValue = fillByte * &H1010101
-        End If
-        If extraByte Then
-            vt = vbLongPtr
-            rmValue = rmValue + 4
-        End If
-    End Select
-    If extraByte Then
-        vt = vbByte + VT_BYREF
-        rmValue = fillByte
-    End If
-    vt = vbEmpty
-End Sub
