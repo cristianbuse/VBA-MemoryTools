@@ -108,12 +108,7 @@ Public Type SAFEARRAY_1D
     fFeatures As Integer
     cbElements As Long
     cLocks As Long
-    #If Win64 Then
-        dummyPadding As Long
-        pvData As LongLong
-    #Else
-        pvData As Long
-    #End If
+    pvData As LongPtr
     rgsabound0 As SAFEARRAYBOUND
 End Type
 Public Enum SAFEARRAY_FEATURES
@@ -132,14 +127,10 @@ Public Enum SAFEARRAY_FEATURES
 End Enum
 Public Enum SAFEARRAY_OFFSETS
     cDimsOffset = 0
-    fFeaturesOffset = 2
-    cbElementsOffset = 4
-    cLocksOffset = 8
-    #If Win64 Then
-        pvDataOffset = 16
-    #Else
-        pvDataOffset = 12
-    #End If
+    fFeaturesOffset = cDimsOffset + INT_SIZE
+    cbElementsOffset = fFeaturesOffset + INT_SIZE
+    cLocksOffset = cbElementsOffset + LONG_SIZE
+    pvDataOffset = cLocksOffset + PTR_SIZE
     rgsaboundOffset = pvDataOffset + PTR_SIZE
     rgsabound0_cElementsOffset = rgsaboundOffset
     rgsabound0_lLboundOffset = rgsabound0_cElementsOffset + LONG_SIZE
