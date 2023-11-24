@@ -755,13 +755,9 @@ Public Sub MemCopy(ByVal destinationPtr As LongPtr _
     '
     Dim b As Long: b = CLng(bytesCount)
     Dim chunk As Long
-    Dim overlapL As Boolean
     Dim overlapR As Boolean
-    Dim hasOverlap As Boolean
     '
-    overlapL = (sourcePtr > destinationPtr) And (destinationPtr + b > sourcePtr)
     overlapR = (destinationPtr > sourcePtr) And (sourcePtr + b > destinationPtr)
-    hasOverlap = overlapL Or overlapR
     '
     If b And &H7FFF8000 Then
         src.sa.cbElements = &H8000&
@@ -779,15 +775,9 @@ Public Sub MemCopy(ByVal destinationPtr As LongPtr _
                 trg.ac.s32K(i) = src.ac.s32K(i)
             Next i
         Else
-            If overlapL Then
-                For i = 0 To src.sa.rgsabound0.cElements - 1
-                     trg.ac.s32K(i) = src.ac.s32K(i)
-                Next i
-            Else
-                For i = 0 To src.sa.rgsabound0.cElements - 1
-                     trg.ac.b32K(i) = src.ac.b32K(i)
-                Next i
-            End If
+            For i = 0 To src.sa.rgsabound0.cElements - 1
+                 trg.ac.b32K(i) = src.ac.b32K(i)
+            Next i
             src.sa.pvData = src.sa.pvData + chunk
             trg.sa.pvData = trg.sa.pvData + chunk
         End If
@@ -816,17 +806,10 @@ Public Sub MemCopy(ByVal destinationPtr As LongPtr _
                 If .bit(1) Then trg.ac.dInt(0) = src.ac.dInt(0): src.sa.pvData = src.sa.pvData + 2: trg.sa.pvData = trg.sa.pvData + 2
                 If .bit(2) Then trg.ac.dLong(0) = src.ac.dLong(0): src.sa.pvData = src.sa.pvData + 4: trg.sa.pvData = trg.sa.pvData + 4
                 If .bit(3) Then trg.ac.dCur(0) = src.ac.dCur(0): src.sa.pvData = src.sa.pvData + 8: trg.sa.pvData = trg.sa.pvData + 8
-                If overlapL Then
-                    If .bit(4) Then trg.ac.s16(0) = src.ac.s16(0): src.sa.pvData = src.sa.pvData + 16: trg.sa.pvData = trg.sa.pvData + 16
-                    If .bit(5) Then trg.ac.s32(0) = src.ac.s32(0): src.sa.pvData = src.sa.pvData + 32: trg.sa.pvData = trg.sa.pvData + 32
-                    If .bit(6) Then trg.ac.s64(0) = src.ac.s64(0): src.sa.pvData = src.sa.pvData + 64: trg.sa.pvData = trg.sa.pvData + 64
-                    If .bit(7) Then trg.ac.s128(0) = src.ac.s128(0): src.sa.pvData = src.sa.pvData + 128: trg.sa.pvData = trg.sa.pvData + 128
-                Else
-                    If .bit(4) Then trg.ac.b16(0) = src.ac.b16(0): src.sa.pvData = src.sa.pvData + 16: trg.sa.pvData = trg.sa.pvData + 16
-                    If .bit(5) Then trg.ac.b32(0) = src.ac.b32(0): src.sa.pvData = src.sa.pvData + 32: trg.sa.pvData = trg.sa.pvData + 32
-                    If .bit(6) Then trg.ac.b64(0) = src.ac.b64(0): src.sa.pvData = src.sa.pvData + 64: trg.sa.pvData = trg.sa.pvData + 64
-                    If .bit(7) Then trg.ac.b128(0) = src.ac.b128(0): src.sa.pvData = src.sa.pvData + 128: trg.sa.pvData = trg.sa.pvData + 128
-                End If
+                If .bit(4) Then trg.ac.b16(0) = src.ac.b16(0): src.sa.pvData = src.sa.pvData + 16: trg.sa.pvData = trg.sa.pvData + 16
+                If .bit(5) Then trg.ac.b32(0) = src.ac.b32(0): src.sa.pvData = src.sa.pvData + 32: trg.sa.pvData = trg.sa.pvData + 32
+                If .bit(6) Then trg.ac.b64(0) = src.ac.b64(0): src.sa.pvData = src.sa.pvData + 64: trg.sa.pvData = trg.sa.pvData + 64
+                If .bit(7) Then trg.ac.b128(0) = src.ac.b128(0): src.sa.pvData = src.sa.pvData + 128: trg.sa.pvData = trg.sa.pvData + 128
             End If
         End With
     End If
@@ -842,14 +825,6 @@ Public Sub MemCopy(ByVal destinationPtr As LongPtr _
                 If .bit(4) Then src.sa.pvData = src.sa.pvData - 4096: trg.sa.pvData = trg.sa.pvData - 4096: trg.ac.s4K(0) = src.ac.s4K(0)
                 If .bit(5) Then src.sa.pvData = src.sa.pvData - 8192: trg.sa.pvData = trg.sa.pvData - 8192: trg.ac.s8K(0) = src.ac.s8K(0)
                 If .bit(6) Then src.sa.pvData = src.sa.pvData - 16384: trg.sa.pvData = trg.sa.pvData - 16384: trg.ac.s16K(0) = src.ac.s16K(0)
-            ElseIf overlapL Then
-                If .bit(0) Then trg.ac.s256(0) = src.ac.s256(0): src.sa.pvData = src.sa.pvData + 256: trg.sa.pvData = trg.sa.pvData + 256
-                If .bit(1) Then trg.ac.s512(0) = src.ac.s512(0): src.sa.pvData = src.sa.pvData + 512: trg.sa.pvData = trg.sa.pvData + 512
-                If .bit(2) Then trg.ac.s1K(0) = src.ac.s1K(0): src.sa.pvData = src.sa.pvData + 1024: trg.sa.pvData = trg.sa.pvData + 1024
-                If .bit(3) Then trg.ac.s2K(0) = src.ac.s2K(0): src.sa.pvData = src.sa.pvData + 2048: trg.sa.pvData = trg.sa.pvData + 2048
-                If .bit(4) Then trg.ac.s4K(0) = src.ac.s4K(0): src.sa.pvData = src.sa.pvData + 4096: trg.sa.pvData = trg.sa.pvData + 4096
-                If .bit(5) Then trg.ac.s8K(0) = src.ac.s8K(0): src.sa.pvData = src.sa.pvData + 8192: trg.sa.pvData = trg.sa.pvData + 8192
-                If .bit(6) Then trg.ac.s16K(0) = src.ac.s16K(0): src.sa.pvData = src.sa.pvData + 16384: trg.sa.pvData = trg.sa.pvData + 16384
             Else
                 If .bit(0) Then trg.ac.b256(0) = src.ac.b256(0): src.sa.pvData = src.sa.pvData + 256: trg.sa.pvData = trg.sa.pvData + 256
                 If .bit(1) Then trg.ac.b512(0) = src.ac.b512(0): src.sa.pvData = src.sa.pvData + 512: trg.sa.pvData = trg.sa.pvData + 512
