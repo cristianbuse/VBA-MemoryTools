@@ -19,7 +19,7 @@ Public Function Factory(ByVal newID As Long) As DemoClass
 End Function
 
 Private Function Init(ByVal c As DemoClass, ByVal newID As Long) As Boolean
-    RedirectInstance VarPtr(Init), Me, c
+    RedirectInstance Init, Me, c
     m_id = newID
 End Function
 

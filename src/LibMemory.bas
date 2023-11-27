@@ -42,6 +42,7 @@ Option Private Module
     #If VBA7 Then
         Private Declare PtrSafe Function CopyMemory Lib "/usr/lib/libc.dylib" Alias "memmove" (Destination As Any, Source As Any, ByVal Length As LongPtr) As LongPtr
         Private Declare PtrSafe Function FillMemory Lib "/usr/lib/libc.dylib" Alias "memset" (Destination As Any, ByVal Fill As Byte, ByVal Length As LongPtr) As LongPtr
+        Public Declare PtrSafe Function MemCopy Lib "/usr/lib/libc.dylib" Alias "memmove" (ByVal Destination As LongPtr, ByVal Source As LongPtr, ByVal Length As LongPtr) As LongPtr
     #Else
         Private Declare Function CopyMemory Lib "/usr/lib/libc.dylib" Alias "memmove" (Destination As Any, Source As Any, ByVal Length As Long) As Long
         Private Declare Function FillMemory Lib "/usr/lib/libc.dylib" Alias "memset" (Destination As Any, ByVal Fill As Byte, ByVal Length As Long) As Long
@@ -534,32 +535,56 @@ End Function
 
 '*******************************************************************************
 'Redirects the instance of a class to another instance of the same class within
-'   the scope of a private class Function (not  Sub) where the call happens.
+'   the scope of a private class Function (not  Sub) where the call happens
 '
 'Warning! ONLY call this method from a Private Function of a class!
+'         You must pass the return of the function as the 'funcReturn' argument
 '
-'vbArray + vbString Function return type is not supported. It would be
-'   possible to find the correct address by reading memory in a loop but there
-'   would be no checking available
+'All function return types are supported with the exception of an Array of UDTs
+'Example usage:
+'   Private Function Init(...) As Boolean
+'       RedirectInstance Init, Me, TheOtherInstance
+'       'Run code on private members of TheOtherInstance
+'   End Function
+'---------------
+'An Array of User Defined Type cannot be coerced into a Variant so it cannot be
+'   passed as the 'funcReturn' argument. However, for UDT return type, simply
+'   pass the first element
+'Example: for 'Function X() As MYUDT' -> RedirectInstance X.FirstMember, ...
+'   as long as the FirstMember is not an Array of UDTs. If FirstMember is a UDT
+'   itself then follow the same logic and pass X.FirstMember.FirstMember ...
 '*******************************************************************************
-Public Sub RedirectInstance(ByVal funcReturnPtr As LongPtr _
-                          , ByVal currentInstance As Object _
-                          , ByVal targetInstance As Object)
+Public Sub RedirectInstance(ByRef funcReturn As Variant _
+                          , ByVal currentInstance As stdole.IUnknown _
+                          , ByVal targetInstance As stdole.IUnknown)
     Const methodName As String = "RedirectInstance"
+    If currentInstance Is Nothing Or targetInstance Is Nothing Then
+        Err.Raise 91, methodName, "Object not set"
+    End If
+    '
+    Static ma As MEMORY_ACCESSOR
     Dim originalPtr As LongPtr
     Dim newPtr As LongPtr
+    Dim ptr As LongPtr
     Dim swapAddress As LongPtr
+    Dim temp As Object
+    Dim isVariant As Boolean
     '
-    originalPtr = ObjPtr(GetDefaultInterface(currentInstance))
-    newPtr = ObjPtr(GetDefaultInterface(targetInstance))
+    Set temp = currentInstance: originalPtr = ObjPtr(temp)
+    Set temp = targetInstance:  newPtr = ObjPtr(temp)
     '
-    'Validate Input
-    If originalPtr = NULL_PTR Or newPtr = NULL_PTR Then
-        Err.Raise 91, methodName, "Object not set"
-    ElseIf MemLongPtr(originalPtr) <> MemLongPtr(newPtr) Then 'Faster to compare vTables than to compare TypeName(s)
+    If Not ma.isSet Then
+        InitMemoryAccessor ma
+        ma.sa.cbElements = PTR_SIZE
+    End If
+    ma.sa.pvData = originalPtr
+    ma.sa.rgsabound0.cElements = 1
+    ptr = ma.ac.dPtr(0)
+    ma.sa.pvData = newPtr
+    If ptr <> ma.ac.dPtr(0) Then 'Faster to compare vTable than TypeName
+        ma.sa.rgsabound0.cElements = 0
+        ma.sa.pvData = NULL_PTR
         Err.Raise 5, methodName, "Expected same VB class"
-    ElseIf funcReturnPtr = NULL_PTR Then
-        Err.Raise 5, methodName, "Missing Function Return Pointer"
     End If
     '
     'On x64 the shadow stack space is allocated next to the Function Return
@@ -572,76 +597,57 @@ Public Sub RedirectInstance(ByVal funcReturnPtr As LongPtr _
         Const memOffsetVariant As Long = PTR_SIZE * 31
     #End If
     '
-    swapAddress = FindSwapAddress(funcReturnPtr, memOffsetNonVariant, originalPtr)
-    If swapAddress = NULL_PTR Then
-        swapAddress = FindSwapAddress(funcReturnPtr, memOffsetVariant, originalPtr)
-        If swapAddress = NULL_PTR Then
-            Err.Raise 5, methodName, "Invalid input or not called " _
-            & "from class Function or vbArray + vbString function return type"
+    ma.sa.pvData = VarPtr(funcReturn)
+    isVariant = (ma.ac.dInt(0) And VT_BYREF) = 0
+    '
+    If isVariant Then
+        ptr = ma.sa.pvData + memOffsetVariant
+    Else
+        ma.sa.pvData = ma.sa.pvData + 8
+        ptr = ma.ac.dPtr(0) + memOffsetNonVariant
+    End If
+    #If Mac Then 'Align for Boolean/Byte/Integer func return type
+        ptr = ptr - (ptr Mod PTR_SIZE)
+    #End If
+    '
+    ma.sa.pvData = ptr
+    #If Win64 = 0 Then
+        #If Mac Then 'Align for Currency/Date/Double func return type
+            If ma.ac.dPtr(0) = NULL_PTR Then ma.sa.pvData = ptr + PTR_SIZE
+        #End If
+        If ma.ac.dPtr(0) <> NULL_PTR Then
+            ptr = ma.ac.dPtr(0) + PTR_SIZE * 2
+            ma.sa.pvData = ptr
+        End If
+    #End If
+    If ma.ac.dPtr(0) = originalPtr Then
+        swapAddress = ptr
+    ElseIf Not isVariant And ma.ac.dPtr(0) = NULL_PTR Then
+        'Func Return could be the first element in a return UDT
+        ma.sa.rgsabound0.cElements = 4
+        If ma.ac.dPtr(3) = originalPtr Then
+            swapAddress = ptr + PTR_SIZE * 3
         End If
     End If
     '
-    'Redirect Instance
-    MemLongPtr(swapAddress) = newPtr
+    If swapAddress = NULL_PTR Then
+        ma.sa.rgsabound0.cElements = 0
+        ma.sa.pvData = NULL_PTR
+        Err.Raise 5, methodName, "Invalid input or not called from class Func"
+    End If
+    '
+    ma.sa.pvData = swapAddress
+    ma.ac.dPtr(0) = newPtr 'Redirect Instance
+    ma.sa.rgsabound0.cElements = 0
+    ma.sa.pvData = NULL_PTR
 End Sub
-
-'*******************************************************************************
-'Finds the swap address (address of the instance pointer on the stack)
-'*******************************************************************************
-#If Win64 Then
-Private Function FindSwapAddress(ByVal funcReturnPtr As LongLong _
-                               , ByVal memOffset As LongLong _
-                               , ByVal originalPtr As LongLong) As LongLong
-    Dim swapAddr As LongLong: swapAddr = funcReturnPtr + memOffset
-    '
-    'Adjust alignment for Boolean/Byte/Integer/Long function return type
-    'Needed on #Mac but not on #Win (at least not found in testing)
-    'Safer to have for #Win as well
-    swapAddr = swapAddr - (swapAddr Mod PTR_SIZE)
-    '
-    If MemLongLong(swapAddr) = originalPtr Then
-        FindSwapAddress = swapAddr
-    End If
-End Function
-#Else
-Private Function FindSwapAddress(ByVal funcReturnPtr As Long _
-                               , ByVal memOffset As Long _
-                               , ByVal originalPtr As Long) As Long
-    Dim startAddr As Long: startAddr = funcReturnPtr + memOffset
-    Dim swapAddr As Long
-    '
-    'Adjust memory alignment for Boolean/Byte/Integer function return type
-    startAddr = startAddr - (startAddr Mod PTR_SIZE)
-    '
-    swapAddr = GetSwapIndirectAddress(startAddr)
-    If swapAddr = NULL_PTR Then
-        'Adjust mem alignment for Currency/Date/Double function return type
-        swapAddr = GetSwapIndirectAddress(startAddr + PTR_SIZE)
-        If swapAddr = NULL_PTR Then Exit Function
-    End If
-    If MemLongPtr(swapAddr) = originalPtr Then
-        FindSwapAddress = swapAddr
-    End If
-End Function
-Private Function GetSwapIndirectAddress(ByVal startAddr As Long) As Long
-    Const maxOffset As Long = PTR_SIZE * 100
-    Dim swapAddr As Long: swapAddr = MemLong(startAddr) + PTR_SIZE * 2
-    '
-    'Check if the address is within acceptable limits. The address
-    '   of the instance pointer (within the stack frame) cannot be too far
-    '   from the function return address (first offsetted to startAddr)
-    If startAddr < swapAddr And swapAddr - startAddr < maxOffset * PTR_SIZE Then
-        GetSwapIndirectAddress = swapAddr
-    End If
-End Function
-#End If
 
 '*******************************************************************************
 'Returns the default interface for an object
 'Casting from IUnknown to IDispatch (Object) forces a call to QueryInterface for
 '   the IDispatch interface (which knows about the default interface)
 '*******************************************************************************
-Public Function GetDefaultInterface(ByVal obj As IUnknown) As Object
+Public Function GetDefaultInterface(ByVal obj As stdole.IUnknown) As Object
     Set GetDefaultInterface = obj
 End Function
 
@@ -1031,8 +1037,7 @@ Public Sub MemFill(ByVal destinationPtr As LongPtr _
                  , ByVal fillByte As Byte)
 #If Mac Then
     FillMemory ByVal destinationPtr, fillByte, bytesCount
-    Exit Sub
-#End If
+#Else
     If bytesCount = 0 Then Exit Sub
     Const maxSizeSpeedGain As Long = &H100000 'Beyond this use API directly
     If bytesCount < 0 Or bytesCount > maxSizeSpeedGain Then
@@ -1085,5 +1090,6 @@ Public Sub MemFill(ByVal destinationPtr As LongPtr _
         bytesLeft = bytesLeft - bytes
         chunk = chunk * 2
     Loop
+#End If
 End Sub
 #End If
