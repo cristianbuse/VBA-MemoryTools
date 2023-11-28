@@ -7,11 +7,11 @@ This library overcomes the speed issues for reading and writing from and into me
 
 This library exposes some useful utilities and wrappers to make it easier to manipulate memory. For **Mac**, **TwinBasic** and **VBA6** (and prior) this library simply uses wrapped API calls as there is no speed benefit in using the native approach.
 
-Copying a byte for 10,000 times on Windows with VBA7 x64 using ```RtlMoveMemory``` API takes around 10 seconds while the native struct approach takes only around 8 milliseconds for the same number of iterations. So, the speed gain is over 1000x is some cases.
+Copying a byte for 10,000 times on Windows with VBA7 x64 using ```RtlMoveMemory``` API takes around 10 seconds while the native struct approach takes only around 8 milliseconds for the same number of iterations. So, the speed gain is over 1000x in some cases.
 
 ## Implementation
 
-**Prior to 24-Nov-2023** (see [5058e3333c](https://github.com/cristianbuse/VBA-MemoryTools/tree/5058e3333c5695291984cdfd2750e3ff61f27823)) this library used a 'Variant ByRef' approach - see related [CR question](https://codereview.stackexchange.com/questions/252659/fast-native-memory-manipulation-in-vba) which describes the technique (initailly used [here](https://codereview.stackexchange.com/a/249125/227582)).
+**Prior to 24-Nov-2023** (see [5058e3333c](https://github.com/cristianbuse/VBA-MemoryTools/tree/5058e3333c5695291984cdfd2750e3ff61f27823)) this library used a 'Variant ByRef' approach - see related [CR question](https://codereview.stackexchange.com/questions/252659/fast-native-memory-manipulation-in-vba) which describes the technique (initially used [here](https://codereview.stackexchange.com/a/249125/227582)).
 
 **Starting 24-Nov-2023** this library uses a ```MEMORY_ACCESSOR``` type/struct that allows acces to memory via UDT arrays with faster speeds (x2 at least).
 
@@ -25,7 +25,7 @@ The ```MEMORY_ACCESSOR``` contains a ```SAFEARRAY``` structure and an ```ArrayAc
 
 10 parametric properties (Get/Let) are exposed:
  01. ```MemByte```
- 02. ```MetInt```
+ 02. ```MemInt```
  03. ```MemLong```
  04. ```MemLongPtr```
  05. ```MemLongLong``` (x64 only)
