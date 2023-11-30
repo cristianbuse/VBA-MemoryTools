@@ -606,13 +606,13 @@ Public Sub RedirectInstance(ByRef funcReturn As Variant _
         ma.sa.pvData = ma.sa.pvData + 8
         ptr = ma.ac.dPtr(0) + memOffsetNonVariant
     End If
-    #If Mac Then 'Align for Boolean/Byte/Integer func return type
+    #If Mac Or (Win64 = 0) Then 'Align for Boolean/Byte/Integer func return type
         ptr = ptr - (ptr Mod PTR_SIZE)
     #End If
     '
     ma.sa.pvData = ptr
     #If Win64 = 0 Then
-        #If Mac Then 'Align for Currency/Date/Double func return type
+        #If Mac Or (Win64 = 0) Then  'Align for Currency/Date/Double func return type
             If ma.ac.dPtr(0) = NULL_PTR Then ma.sa.pvData = ptr + PTR_SIZE
         #End If
         If ma.ac.dPtr(0) <> NULL_PTR Then
