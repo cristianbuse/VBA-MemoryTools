@@ -540,19 +540,13 @@ End Function
 'Warning! ONLY call this method from a Private Function of a class!
 '         You must pass the return of the function as the 'funcReturn' argument
 '
-'All function return types are supported with the exception of an Array of UDTs
+'All function return types are supported with the exception User Defined Types
+'   (UDTs) ar Arrays of UDT type
 'Example usage:
 '   Private Function Init(...) As Boolean
 '       RedirectInstance Init, Me, TheOtherInstance
 '       'Run code on private members of TheOtherInstance
 '   End Function
-'---------------
-'An Array of User Defined Type cannot be coerced into a Variant so it cannot be
-'   passed as the 'funcReturn' argument. However, for UDT return type, simply
-'   pass the first element
-'Example: for 'Function X() As MYUDT' -> RedirectInstance X.FirstMember, ...
-'   as long as the FirstMember is not an Array of UDTs. If FirstMember is a UDT
-'   itself then follow the same logic and pass X.FirstMember.FirstMember ...
 '*******************************************************************************
 Public Sub RedirectInstance(ByRef funcReturn As Variant _
                           , ByVal currentInstance As stdole.IUnknown _
@@ -568,7 +562,6 @@ Public Sub RedirectInstance(ByRef funcReturn As Variant _
     Dim ptr As LongPtr
     Dim swapAddress As LongPtr
     Dim temp As Object
-    Dim isVariant As Boolean
     '
     Set temp = currentInstance: originalPtr = ObjPtr(temp)
     Set temp = targetInstance:  newPtr = ObjPtr(temp)
@@ -598,42 +591,45 @@ Public Sub RedirectInstance(ByRef funcReturn As Variant _
     #End If
     '
     ma.sa.pvData = VarPtr(funcReturn)
-    isVariant = (ma.ac.dInt(0) And VT_BYREF) = 0
-    '
-    If isVariant Then
-        ptr = ma.sa.pvData + memOffsetVariant
-    Else
-        ma.sa.pvData = ma.sa.pvData + 8
-        ptr = ma.ac.dPtr(0) + memOffsetNonVariant
-    End If
-    #If Mac Or (Win64 = 0) Then 'Align for Boolean/Byte/Integer func return type
-        ptr = ptr - (ptr Mod PTR_SIZE)
-    #End If
-    '
-    ma.sa.pvData = ptr
-    #If Win64 = 0 Then
-        #If Mac Or (Win64 = 0) Then  'Align for Currency/Date/Double func return type
-            If ma.ac.dPtr(0) = NULL_PTR Then ma.sa.pvData = ptr + PTR_SIZE
+    If (ma.ac.dInt(0) And VT_BYREF) = 0 Then
+        ma.sa.pvData = ma.sa.pvData + memOffsetVariant
+        #If Win64 = 0 Then
+            ma.sa.pvData = ma.ac.dPtr(0) + PTR_SIZE * 2
         #End If
-        If ma.ac.dPtr(0) <> NULL_PTR Then
-            ptr = ma.ac.dPtr(0) + PTR_SIZE * 2
-            ma.sa.pvData = ptr
-        End If
-    #End If
-    If ma.ac.dPtr(0) = originalPtr Then
-        swapAddress = ptr
-    ElseIf Not isVariant And ma.ac.dPtr(0) = NULL_PTR Then
-        'Func Return could be the first element in a return UDT
-        ma.sa.rgsabound0.cElements = 4
-        If ma.ac.dPtr(3) = originalPtr Then
-            swapAddress = ptr + PTR_SIZE * 3
+        If ma.ac.dPtr(0) = originalPtr Then swapAddress = ma.sa.pvData
+    Else
+        Const variantPtrOffset As Long = 8
+        Dim vt As Integer:    vt = ma.ac.dInt(0) Xor VT_BYREF
+        Dim isObj As Boolean: isObj = (vt = vbObject) Or (vt = vbDataObject)
+        
+        ma.sa.pvData = ma.sa.pvData + variantPtrOffset
+        ptr = ma.ac.dPtr(0)
+        #If Mac Or (Win64 = 0) Then 'Align for Bool/Byte/Int func return type
+            ptr = ptr - (ptr Mod PTR_SIZE)
+        #End If
+        '
+        ma.sa.pvData = ptr + memOffsetNonVariant
+        #If Win64 = 0 Then
+            If vt = vbCurrency Or vt = vbDate Or vt = vbDouble Then
+                ma.sa.pvData = ma.sa.pvData + PTR_SIZE
+            End If
+            ma.sa.pvData = ma.ac.dPtr(0) + PTR_SIZE * 2
+        #End If
+        If ma.ac.dPtr(0) = originalPtr Then
+            swapAddress = ma.sa.pvData
+        ElseIf isObj Then
+            ma.sa.pvData = ptr + memOffsetNonVariant + PTR_SIZE * 2
+            #If Win64 = 0 Then
+                ma.sa.pvData = ma.ac.dPtr(0) + PTR_SIZE * 2
+            #End If
+            If ma.ac.dPtr(0) = originalPtr Then swapAddress = ma.sa.pvData
         End If
     End If
     '
     If swapAddress = NULL_PTR Then
         ma.sa.rgsabound0.cElements = 0
         ma.sa.pvData = NULL_PTR
-        Err.Raise 5, methodName, "Invalid input or not called from class Func"
+        Err.Raise 5, methodName, "Not called from class Func or UDT Func Return"
     End If
     '
     ma.sa.pvData = swapAddress
