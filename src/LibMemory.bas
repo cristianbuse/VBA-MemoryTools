@@ -539,16 +539,18 @@ End Function
 '
 'Warning! ONLY call this method from a Private Function of a class!
 '         You must pass the return of the function as the 'funcReturn' argument
+'         You must pass the address for the return of the function using VarPtr
 '
 'All function return types are supported with the exception User Defined Types
 '   (UDTs) ar Arrays of UDT type
 'Example usage:
 '   Private Function Init(...) As Boolean
-'       RedirectInstance Init, Me, TheOtherInstance
+'       RedirectInstance Init, VarPtr(Init), Me, TheOtherInstance
 '       'Run code on private members of TheOtherInstance
 '   End Function
 '*******************************************************************************
 Public Sub RedirectInstance(ByRef funcReturn As Variant _
+                          , ByVal funcReturnPtr As LongPtr _
                           , ByVal currentInstance As stdole.IUnknown _
                           , ByVal targetInstance As stdole.IUnknown)
     Const methodName As String = "RedirectInstance"
@@ -599,14 +601,17 @@ Public Sub RedirectInstance(ByRef funcReturn As Variant _
         If ma.ac.dPtr(0) = originalPtr Then swapAddress = ma.sa.pvData
     Else
         Const variantPtrOffset As Long = 8
-        Dim vt As Integer:    vt = ma.ac.dInt(0) Xor VT_BYREF
-        Dim isObj As Boolean: isObj = (vt = vbObject) Or (vt = vbDataObject)
-        
-        ma.sa.pvData = ma.sa.pvData + variantPtrOffset
-        ptr = ma.ac.dPtr(0)
-        #If Mac Or (Win64 = 0) Then 'Align for Bool/Byte/Int func return type
-            ptr = ptr - (ptr Mod PTR_SIZE)
-        #End If
+        Dim vt As Integer: vt = ma.ac.dInt(0) Xor VT_BYREF
+        '
+        If (vt = vbObject) Or (vt = vbDataObject) Then
+            ptr = funcReturnPtr
+        Else
+            ma.sa.pvData = ma.sa.pvData + variantPtrOffset
+            ptr = ma.ac.dPtr(0)
+            #If Mac Or (Win64 = 0) Then 'Align for Bool/Byte/Int return type
+                ptr = ptr - (ptr Mod PTR_SIZE)
+            #End If
+        End If
         '
         ma.sa.pvData = ptr + memOffsetNonVariant
         #If Win64 = 0 Then
@@ -615,15 +620,7 @@ Public Sub RedirectInstance(ByRef funcReturn As Variant _
             End If
             ma.sa.pvData = ma.ac.dPtr(0) + PTR_SIZE * 2
         #End If
-        If ma.ac.dPtr(0) = originalPtr Then
-            swapAddress = ma.sa.pvData
-        ElseIf isObj Then
-            ma.sa.pvData = ptr + memOffsetNonVariant + PTR_SIZE * 2
-            #If Win64 = 0 Then
-                ma.sa.pvData = ma.ac.dPtr(0) + PTR_SIZE * 2
-            #End If
-            If ma.ac.dPtr(0) = originalPtr Then swapAddress = ma.sa.pvData
-        End If
+        If ma.ac.dPtr(0) = originalPtr Then swapAddress = ma.sa.pvData
     End If
     '
     If swapAddress = NULL_PTR Then
