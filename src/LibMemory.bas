@@ -83,7 +83,6 @@ Option Private Module
 Private Const BYTE_SIZE As Long = 1
 Private Const INT_SIZE As Long = 2
 Private Const LONG_SIZE As Long = 4
-Private Const VT_SPACING As Long = VARIANT_SIZE / INT_SIZE 'VarType spacing in an array of Variants
 
 #If Win64 Then
     #If Mac Then
@@ -136,6 +135,7 @@ Public Enum SAFEARRAY_OFFSETS
     rgsabound0_cElementsOffset = rgsaboundOffset
     rgsabound0_lLboundOffset = rgsabound0_cElementsOffset + LONG_SIZE
 End Enum
+Public Const SAFEARRAY_SIZE As Long = rgsabound0_lLboundOffset + LONG_SIZE
 
 '*******************************************************************************
 'A new way to copy memory via UDTs - faster than using ByRef Variant
@@ -174,6 +174,8 @@ Private Type ArrayAccessor
     s128() As String * 64:   s256() As String * 128:  s512() As String * 256
     s1K()  As String * 512:  s2K()  As String * 1024: s4K()  As String * 2048
     s8K()  As String * 4096: s16K() As String * 8192: s32K() As String * 16384
+    'For referencing fake SAFE ARRAYs
+    sa() As SAFEARRAY_1D
 End Type
 Private Type ByteInfo
     bit(0 To 7) As Boolean
@@ -183,6 +185,9 @@ Public Type MEMORY_ACCESSOR
     ac As ArrayAccessor
     sa As SAFEARRAY_1D
 End Type
+
+'Storage for memory allocated via 'MemAlloc'. Can be deallocated via 'MemFree'
+Private m_allocMemory As New Collection
 
 '*******************************************************************************
 'Returns an initialized (linked) MEMORY_ACCESSOR struct
@@ -1091,3 +1096,57 @@ Public Sub MemFill(ByVal destinationPtr As LongPtr _
 #End If
 End Sub
 #End If
+
+'*******************************************************************************
+'Allocates persistent memory
+'Allocated memory is deallocated automatically on state loss or via 'MemFree'
+'*******************************************************************************
+Public Function MemAlloc(ByVal byteSize As Long) As LongPtr
+    Static ma As MEMORY_ACCESSOR: If Not ma.isSet Then InitMemoryAccessor ma
+    Static i As stdole.IEnumVARIANT
+    Static nextItemAddr As LongPtr
+    Static arr() As Byte
+    Static arrAddr As LongPtr
+    Dim aPtr As LongPtr
+    Dim pvPtr As LongPtr
+    '
+    If byteSize < 1 Then Exit Function
+    ReDim arr(0 To byteSize - 1)
+    '
+    pvPtr = VarPtr(arr(0))
+    '
+    If nextItemAddr = NULL_PTR Then
+        Set i = m_allocMemory.[_NewEnum]
+        nextItemAddr = ObjPtr(i) + PTR_SIZE * 2
+        arrAddr = VarPtrArr(arr)
+    End If
+    If m_allocMemory.Count = 0 Then
+        m_allocMemory.Add Empty, CStr(pvPtr)
+    Else
+        m_allocMemory.Add Empty, CStr(pvPtr), 1
+    End If
+    i.Reset 'Update pointer at 'nextItemAddr' to the latest item
+    '
+    ma.sa.pvData = arrAddr
+    ma.sa.rgsabound0.cElements = 1
+    aPtr = ma.ac.dPtr(0) 'Same as ArrPtr(arr)
+    ma.ac.dPtr(0) = NULL_PTR 'Clear 'arr' variable
+    ma.sa.pvData = nextItemAddr
+    ma.sa.pvData = ma.ac.dPtr(0) + 8
+    ma.ac.dPtr(0) = aPtr
+    ma.sa.pvData = ma.sa.pvData - 8
+    ma.ac.dInt(0) = vbArray + vbByte
+    ma.sa.rgsabound0.cElements = 0
+    ma.sa.pvData = NULL_PTR
+    '
+    MemAlloc = pvPtr
+End Function
+
+'*******************************************************************************
+'Deallocates memory that was allocated with 'MemAlloc'
+'*******************************************************************************
+Public Sub MemFree(ByVal memAddress As LongPtr)
+    On Error Resume Next
+    m_allocMemory.Remove CStr(memAddress)
+    On Error GoTo 0
+End Sub

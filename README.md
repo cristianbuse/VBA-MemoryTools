@@ -34,6 +34,11 @@ The ```MEMORY_ACCESSOR``` contains a ```SAFEARRAY``` structure and an ```ArrayAc
  08. ```MemCur```
  09. ```MemDate```
  10. ```MemDbl```
+ 
+Persistent memory allocation/deallocation:
+ - ```MemAlloc```
+ - ```MemFree```
+Memory allocated with ```MemAlloc``` is deallocated automatically on state loss or by calling ```MemFree``` using the original pointer returned by ```MemAlloc```
 
 A few other utilities:
  - ```GetDefaultInterface```
