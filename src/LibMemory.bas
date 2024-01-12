@@ -841,7 +841,12 @@ End Sub
 '*******************************************************************************
 Public Sub CloneParamArray(ByVal paramPtr As LongPtr, ByRef out() As Variant)
     Static ma As MEMORY_ACCESSOR: If Not ma.isSet Then InitMemoryAccessor ma
-    Dim v As Variant:             v = paramPtr
+    Dim v As Variant
+    Dim sa As SAFEARRAY_1D
+    '
+    MemCopy VarPtr(sa), paramPtr, LenB(sa)
+    v = VarPtr(sa)
+    sa.cLocks = 1
     '
     ma.sa.pvData = VarPtr(v): ma.sa.rgsabound0.cElements = 1
     ma.ac.dInt(0) = vbArray + vbVariant
