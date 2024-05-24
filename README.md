@@ -1,4 +1,4 @@
-# VBA-MemoryTools
+# VBA-MemoryTools [![Mentioned in Awesome VBA](https://awesome.re/mentioned-badge.svg)](https://github.com/sancarn/awesome-vba)
 Native memory manipulation in VBA.
 
 There is an issue with the speed of API calls in **VBA7**. This is very well tested and explained in [this Code Review question](https://codereview.stackexchange.com/questions/270258/evaluate-performance-of-dll-calls-from-vba).
